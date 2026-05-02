@@ -63,8 +63,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="text-xs text-muted-foreground">Also available on Telegram</div>
             <div className="text-xs text-primary mt-0.5 font-medium">Send voice or invoice photos</div>
           </div>
-          <div className="text-xs text-muted-foreground/50 leading-tight">
-            Powered by AI Transformers LTD
+          <div className="flex items-center gap-1.5">
+            <img src="/ai-transformers-logo.png" alt="AI Transformers" className="w-5 h-5 rounded-sm opacity-70" />
+            <div className="text-xs text-muted-foreground/50 leading-tight">
+              Powered by AI Transformers LTD
+            </div>
           </div>
         </div>
       </aside>
