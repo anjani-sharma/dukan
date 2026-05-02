@@ -46,7 +46,7 @@ export default function Sales() {
 
   const form = useForm<SaleForm>({
     resolver: zodResolver(saleSchema),
-    defaultValues: { customerId: "", paidAmount: 0, notes: "" },
+    defaultValues: { customerId: "walk-in", paidAmount: 0, notes: "" },
   });
 
   const totalAmount = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
@@ -56,7 +56,7 @@ export default function Sales() {
   function openNew() {
     setItems([{ productName: "", quantity: 1, unitPrice: 0 }]);
     setTranscript("");
-    form.reset({ customerId: "", paidAmount: 0, notes: "" });
+    form.reset({ customerId: "walk-in", paidAmount: 0, notes: "" });
     setDialogOpen(true);
   }
 
@@ -106,7 +106,7 @@ export default function Sales() {
     if (!validItems.length) { toast({ title: "Add at least one item", variant: "destructive" }); return; }
     await createSale.mutateAsync({
       data: {
-        customerId: data.customerId ? parseInt(data.customerId) : null,
+        customerId: data.customerId && data.customerId !== "walk-in" ? parseInt(data.customerId) : null,
         items: validItems.map((i) => ({ productName: i.productName, quantity: i.quantity, unitPrice: i.unitPrice, productId: null })),
         paidAmount: data.paidAmount,
         notes: data.notes || null,
@@ -286,7 +286,7 @@ export default function Sales() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Walk-in customer</SelectItem>
+                      <SelectItem value="walk-in">Walk-in customer</SelectItem>
                       {customers?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
