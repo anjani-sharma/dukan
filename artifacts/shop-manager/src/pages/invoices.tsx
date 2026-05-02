@@ -18,6 +18,16 @@ import { cn } from "@/lib/utils";
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
 type LineItem = { name: string; quantity: number; unitPrice: number; subtotal: number };
+type SaveInvoiceInput = {
+  type: "purchase" | "sale";
+  vendorOrCustomer: string;
+  invoiceDate: string;
+  amount: number;
+  lineItems: LineItem[];
+  applyStock: boolean;
+  imageBase64?: string | null;
+  mimeType: string;
+};
 
 interface InvoiceRow {
   id: number; type: string; vendorOrCustomer?: string | null; amount?: number | null;
@@ -349,31 +359,53 @@ export default function Invoices() {
     setImageMime(mime);
     const reader = new FileReader();
     reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      const b64 = dataUrl.split(",")[1];
-      setImagePreview(dataUrl);
-      setImageBase64(b64);
+      try {
+        const dataUrl = reader.result as string;
+        const b64 = dataUrl.split(",")[1];
+        setImagePreview(dataUrl);
+        setImageBase64(b64);
 
-      // Check duplicate
-      const hashRes = await fetch(`${BASE}/api/invoices/check-duplicate?hash=${await sha256(b64)}`);
-      const hashData = await hashRes.json();
-      if (hashData.duplicate) {
-        setDuplicateWarning({ message: `This invoice was already uploaded (${hashData.existingInvoice.vendorOrCustomer ?? "unknown vendor"}, ${hashData.existingInvoice.invoiceDate ?? "no date"})`, existing: hashData.existingInvoice });
+        // Check duplicate
+        const hashRes = await fetch(`${BASE}/api/invoices/check-duplicate?hash=${await sha256(b64)}`);
+        const hashData = await hashRes.json();
+        if (hashData.duplicate) {
+          setDuplicateWarning({ message: `This invoice was already uploaded (${hashData.existingInvoice.vendorOrCustomer ?? "unknown vendor"}, ${hashData.existingInvoice.invoiceDate ?? "no date"})`, existing: hashData.existingInvoice });
+          return;
+        }
+
+        // AI parse
+        const result = await parseImage.mutateAsync({ data: { imageBase64: b64, mimeType: mime } });
+        const lineItems = (result.items ?? []).map((it) => ({ ...it, subtotal: it.subtotal ?? it.quantity * it.unitPrice }));
+        const parsed = {
+          vendorOrCustomer: result.vendorOrCustomer ?? undefined,
+          amount: result.amount ?? undefined,
+          invoiceDate: result.invoiceDate ?? undefined,
+          items: lineItems,
+        };
+        setParsedData(parsed);
+
+        await saveInvoice({
+          type: "purchase",
+          vendorOrCustomer: parsed.vendorOrCustomer ?? "",
+          amount: parsed.amount ?? lineItems.reduce((sum, item) => sum + (item.subtotal || 0), 0),
+          invoiceDate: parsed.invoiceDate ?? "",
+          lineItems,
+          applyStock: false,
+          imageBase64: b64,
+          mimeType: mime,
+        });
+
+        setDialogOpen(false);
+        setReviewOpen(false);
+      } catch (err) {
+        toast({
+          title: "Invoice was not saved",
+          description: err instanceof Error ? err.message : "Please try again.",
+          variant: "destructive",
+        });
+      } finally {
         setScanning(false);
-        return;
       }
-
-      // AI parse
-      const result = await parseImage.mutateAsync({ data: { imageBase64: b64, mimeType: mime } });
-      setParsedData({
-        vendorOrCustomer: result.vendorOrCustomer ?? undefined,
-        amount: result.amount ?? undefined,
-        invoiceDate: result.invoiceDate ?? undefined,
-        items: result.items ?? undefined,
-      });
-      setScanning(false);
-      setDialogOpen(false);
-      setReviewOpen(true);
     };
     reader.readAsDataURL(file);
   }
@@ -384,45 +416,51 @@ export default function Invoices() {
     return Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
-  async function handleReviewConfirm(data: { vendorOrCustomer: string; invoiceDate: string; amount: number; lineItems: LineItem[]; applyStock: boolean; type: "purchase" | "sale" }) {
-    setSavingInvoice(true);
+  async function saveInvoice(data: SaveInvoiceInput) {
     const body = {
       type: data.type,
       vendorOrCustomer: data.vendorOrCustomer || null,
       amount: data.amount || null,
       invoiceDate: data.invoiceDate || null,
       notes: null,
-      imageBase64: imageBase64 ?? undefined,
-      mimeType: imageMime,
+      imageBase64: data.imageBase64 ?? undefined,
+      mimeType: data.mimeType,
       lineItems: data.lineItems,
     };
+    const r = await fetch(`${BASE}/api/invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const invoice = await r.json().catch(() => null);
+    if (!r.ok) {
+      throw new Error(invoice?.detail ?? invoice?.error ?? invoice?.message ?? `Invoice save failed (${r.status})`);
+    }
+
+    qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
+    toast({ title: "Invoice saved" });
+
+    if (data.applyStock && data.type === "purchase" && invoice?.id) {
+      const sr = await fetch(`${BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
+      const sd = await sr.json();
+      if (!sr.ok) {
+        toast({
+          title: "Invoice saved, stock not updated",
+          description: sd?.error ?? `Stock update failed (${sr.status})`,
+          variant: "destructive",
+        });
+        return invoice;
+      }
+      const matched = (sd.results as { matched: boolean }[])?.filter((x) => x.matched).length ?? 0;
+      const unmatched = (sd.results?.length ?? 0) - matched;
+      toast({ title: "Stock updated", description: `${matched} products updated${unmatched > 0 ? `, ${unmatched} items not matched to products` : ""}` });
+      qc.invalidateQueries({ queryKey: ["products"] });
+    }
+
+    return invoice;
+  }
+
+  async function handleReviewConfirm(data: { vendorOrCustomer: string; invoiceDate: string; amount: number; lineItems: LineItem[]; applyStock: boolean; type: "purchase" | "sale" }) {
+    setSavingInvoice(true);
     try {
-      const r = await fetch(`${BASE}/api/invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const invoice = await r.json().catch(() => null);
-      if (!r.ok) {
-        throw new Error(invoice?.error ?? invoice?.message ?? `Invoice save failed (${r.status})`);
-      }
-
-      qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
+      await saveInvoice({ ...data, imageBase64, mimeType: imageMime });
       setReviewOpen(false);
-      toast({ title: "Invoice saved" });
-
-      if (data.applyStock && data.type === "purchase" && invoice?.id) {
-        const sr = await fetch(`${BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
-        const sd = await sr.json();
-        if (!sr.ok) {
-          toast({
-            title: "Invoice saved, stock not updated",
-            description: sd?.error ?? `Stock update failed (${sr.status})`,
-            variant: "destructive",
-          });
-          return;
-        }
-        const matched = (sd.results as { matched: boolean }[])?.filter((x) => x.matched).length ?? 0;
-        const unmatched = (sd.results?.length ?? 0) - matched;
-        toast({ title: "Stock updated", description: `${matched} products updated${unmatched > 0 ? `, ${unmatched} items not matched to products` : ""}` });
-        qc.invalidateQueries({ queryKey: ["products"] });
-      }
     } catch (err) {
       toast({
         title: "Invoice was not saved",
