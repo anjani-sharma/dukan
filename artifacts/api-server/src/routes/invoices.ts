@@ -9,7 +9,8 @@ import {
   DeleteInvoiceParams,
 } from "@workspace/api-zod";
 import { z } from "zod";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { uploadToR2, deleteFromR2, keyFromUrl } from "../lib/r2";
 
 const router = Router();
 
@@ -58,9 +59,13 @@ router.post("/invoices", async (req, res) => {
   let imageUrl: string | null = null;
   if (extra.imageBase64) {
     imageHash = createHash("sha256").update(extra.imageBase64).digest("hex");
-    // Store as data URL (base64 embedded)
     const mimeType = req.body.mimeType ?? "image/jpeg";
-    imageUrl = `data:${mimeType};base64,${extra.imageBase64}`;
+    const ext = mimeType.split("/")[1] ?? "jpg";
+    const key = `invoices/${randomUUID()}.${ext}`;
+    const buffer = Buffer.from(extra.imageBase64, "base64");
+    const r2Url = await uploadToR2(buffer, key, mimeType);
+    // Use R2 URL if available, otherwise fall back to base64 data URL
+    imageUrl = r2Url ?? `data:${mimeType};base64,${extra.imageBase64}`;
   }
 
   const [row] = await db.insert(invoicesTable).values({
@@ -137,6 +142,11 @@ router.post("/invoices/:id/apply-stock", async (req, res) => {
 
 router.delete("/invoices/:id", async (req, res) => {
   const { id } = DeleteInvoiceParams.parse({ id: Number(req.params.id) });
+  const [row] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
+  if (row?.imageUrl) {
+    const key = keyFromUrl(row.imageUrl);
+    if (key) await deleteFromR2(key);
+  }
   await db.delete(invoicesTable).where(eq(invoicesTable.id, id));
   return res.status(204).send();
 });

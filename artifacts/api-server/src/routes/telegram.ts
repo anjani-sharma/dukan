@@ -3,6 +3,8 @@ import { db } from "@workspace/db";
 import { salesTable, customersTable, productsTable, creditPaymentsTable, invoicesTable, telegramSubscribersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sendDailyReport, sendWeeklyReport } from "../scheduler";
+import { uploadToR2 } from "../lib/r2";
+import { randomUUID } from "node:crypto";
 import OpenAI from "openai";
 import { logger } from "../lib/logger";
 
@@ -285,6 +287,11 @@ Return only valid JSON.`,
       const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
       const imgBase64 = imgBuffer.toString("base64");
 
+      // Upload to R2 (falls back to base64 if R2 not configured)
+      const r2Key = `invoices/tg-${randomUUID()}.jpg`;
+      const r2Url = await uploadToR2(imgBuffer, r2Key, "image/jpeg");
+      const imageUrl = r2Url ?? `data:image/jpeg;base64,${imgBase64}`;
+
       const openai = getOpenAI();
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -310,6 +317,7 @@ Return only valid JSON.`,
         vendorOrCustomer: data.vendorOrCustomer ?? null,
         amount: data.amount != null ? String(data.amount) : null,
         invoiceDate: data.invoiceDate ?? null,
+        imageUrl,
         notes: "Scanned via Telegram",
         aiExtractedData: data,
       });
