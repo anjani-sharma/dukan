@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { TranscribeVoiceBody, ParseInvoiceImageBody } from "@workspace/api-zod";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 const router = Router();
@@ -20,6 +21,17 @@ function getOpenAI() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("No OpenAI API key configured. Set OPENAI_API_KEY in your secrets.");
   return new OpenAI({ apiKey: key });
+}
+
+function getAnthropic() {
+  const integrationKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+  const integrationUrl = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+  if (integrationKey && integrationUrl) {
+    return new Anthropic({ apiKey: integrationKey, baseURL: integrationUrl });
+  }
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("No Anthropic API key configured. Set ANTHROPIC_API_KEY in your secrets.");
+  return new Anthropic({ apiKey: key });
 }
 
 router.post("/ai/transcribe-voice", async (req, res) => {
@@ -84,15 +96,16 @@ router.post("/ai/parse-invoice-image", async (req, res) => {
       return res.status(422).json({ error: "PDF scanning is not yet supported. Please upload a photo of the invoice instead." });
     }
 
-    const openai = getOpenAI();
+    const mediaType = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)
+      ? mimeType
+      : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const anthropic = getAnthropic();
+
+    const response = await anthropic.messages.create({
+      model: "claude-opus-4-5",
       max_tokens: 2000,
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
+      system: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
 These are often handwritten on preprinted forms with columns: QNTY | PARTICULAR | RATE | AMOUNT (or similar).
 
 Key extraction rules:
@@ -118,13 +131,13 @@ Return JSON only (no markdown):
   "items": [{"name": string, "quantity": number, "unit": string, "unitPrice": number, "subtotal": number}]|null,
   "rawText": string|null
 }`,
-        },
+      messages: [
         {
           role: "user",
           content: [
             {
-              type: "image_url",
-              image_url: { url: `data:${mimeType};base64,${body.imageBase64}`, detail: "high" },
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: body.imageBase64 },
             },
             { type: "text", text: "Extract all invoice data from this image. Pay careful attention to the handwritten text in the table rows." },
           ],
@@ -132,7 +145,7 @@ Return JSON only (no markdown):
       ],
     });
 
-    const content = response.choices[0]?.message?.content ?? "{}";
+    const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
     const data = JSON.parse(extractJson(content));
     return res.json(data);
   } catch (err) {
@@ -157,15 +170,16 @@ router.post("/ai/parse-payment-receipt", async (req, res) => {
       return res.status(422).json({ error: "PDF scanning is not yet supported. Please upload a photo of the receipt instead." });
     }
 
-    const openai = getOpenAI();
+    const mediaType = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)
+      ? mimeType
+      : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const anthropic = getAnthropic();
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
       max_tokens: 800,
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert at reading Indian payment receipts and bank documents. Common types:
+      system: `You are an expert at reading Indian payment receipts and bank documents. Common types:
 
 1. BANK DEPOSIT SLIPS (e.g. Bank of Baroda, SBI, HDFC, ICICI, PNB):
    - Look for: bank name, account holder name, account number, date, total amount deposited, slip/form number.
@@ -196,13 +210,13 @@ Return JSON only (no markdown):
   "merchantOrVendor": string|null,
   "notes": string|null
 }`,
-        },
+      messages: [
         {
           role: "user",
           content: [
             {
-              type: "image_url",
-              image_url: { url: `data:${mimeType};base64,${body.imageBase64}`, detail: "high" },
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: body.imageBase64 },
             },
             { type: "text", text: "Extract all payment details from this receipt/slip." },
           ],
@@ -210,7 +224,7 @@ Return JSON only (no markdown):
       ],
     });
 
-    const content = response.choices[0]?.message?.content ?? "{}";
+    const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
     const data = JSON.parse(extractJson(content));
     return res.json(data);
   } catch (err) {
