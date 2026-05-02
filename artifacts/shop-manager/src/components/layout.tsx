@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, ShoppingCart, Users, Package, FileText, Zap, BarChart2, Store, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Users, Package, FileText, BarChart2, Store, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuickEntry } from "./quick-entry";
 
@@ -23,14 +23,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside className="w-56 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col">
         <div className="px-5 py-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Zap className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-sidebar-foreground leading-tight">ElectraShop</div>
-              <div className="text-xs text-muted-foreground">Manager</div>
-            </div>
+          <div>
+            <div className="text-2xl font-black text-primary tracking-tight leading-none">DOKAN</div>
+            <div className="text-xs text-muted-foreground mt-1">RK Enterprises · Electrical Shop</div>
           </div>
         </div>
 
@@ -56,9 +51,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="px-4 py-4 border-t border-sidebar-border">
-          <div className="text-xs text-muted-foreground">Also available on Telegram</div>
-          <div className="text-xs text-primary mt-0.5 font-medium">Send voice or invoice photos</div>
+        <div className="px-4 py-4 border-t border-sidebar-border space-y-2">
+          <div>
+            <div className="text-xs text-muted-foreground">Also available on Telegram</div>
+            <div className="text-xs text-primary mt-0.5 font-medium">Send voice or invoice photos</div>
+          </div>
+          <div className="text-xs text-muted-foreground/50 leading-tight">
+            Powered by AI Transformers LTD
+          </div>
         </div>
       </aside>
 
