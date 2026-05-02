@@ -168,10 +168,10 @@ export default function Sales() {
                   <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
                     {(s.items as { productName: string; quantity: number }[]).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
                   </td>
-                  <td className="px-4 py-3 text-right font-medium text-foreground">AED {s.totalAmount.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-foreground">Rs {s.totalAmount.toFixed(2)}</td>
                   <td className="px-4 py-3 text-right">
                     {s.creditAmount > 0
-                      ? <span className="text-amber-400 font-medium">AED {s.creditAmount.toFixed(2)}</span>
+                      ? <span className="text-amber-400 font-medium">Rs {s.creditAmount.toFixed(2)}</span>
                       : <span className="text-emerald-400 text-xs">Paid</span>}
                   </td>
                   <td className="px-4 py-3">
@@ -257,7 +257,7 @@ export default function Sales() {
               {/* Totals */}
               <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal</span><span>AED {totalAmount.toFixed(2)}</span>
+                  <span>Subtotal</span><span>Rs {totalAmount.toFixed(2)}</span>
                 </div>
                 <FormField control={form.control} name="paidAmount" render={({ field }) => (
                   <FormItem>
@@ -271,7 +271,7 @@ export default function Sales() {
                   </FormItem>
                 )} />
                 <div className={cn("flex justify-between font-semibold", creditAmount > 0 ? "text-amber-400" : "text-emerald-400")}>
-                  <span>Credit Balance</span><span>AED {creditAmount.toFixed(2)}</span>
+                  <span>Credit Balance</span><span>Rs {creditAmount.toFixed(2)}</span>
                 </div>
               </div>
 

@@ -153,7 +153,7 @@ export default function Products() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{p.category ?? "—"}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">{p.costPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-foreground">AED {p.sellingPrice.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-medium text-foreground">Rs {p.sellingPrice.toFixed(2)}</td>
                     <td className="px-4 py-3 text-right">
                       <span className={cn("inline-flex items-center gap-1 font-medium", isLow ? "text-red-400" : "text-emerald-400")}>
                         {isLow && <AlertTriangle className="w-3 h-3" />}
@@ -207,14 +207,14 @@ export default function Products() {
                 )} />
                 <FormField control={form.control} name="costPrice" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cost Price (AED)</FormLabel>
+                    <FormLabel>Cost Price (Rs)</FormLabel>
                     <FormControl><Input type="number" step="0.01" {...field} data-testid="input-product-cost" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="sellingPrice" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Selling Price (AED)</FormLabel>
+                    <FormLabel>Selling Price (Rs)</FormLabel>
                     <FormControl><Input type="number" step="0.01" {...field} data-testid="input-product-price" /></FormControl>
                     <FormMessage />
                   </FormItem>

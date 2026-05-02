@@ -44,9 +44,9 @@ async function getDashboardSummaryText(): Promise<string> {
   const lowStock = allProducts.filter((p) => p.stockQuantity <= p.lowStockThreshold);
 
   let msg = `📊 <b>Daily Summary</b>\n\n`;
-  msg += `📅 Today: <b>${todayTx} sales</b> — AED ${todaySales.toFixed(2)}\n`;
-  msg += `📆 This Month: AED ${monthSales.toFixed(2)}\n`;
-  msg += `💳 Outstanding Balances: AED ${outstanding.toFixed(2)}\n`;
+  msg += `📅 Today: <b>${todayTx} sales</b> — Rs ${todaySales.toFixed(2)}\n`;
+  msg += `📆 This Month: Rs ${monthSales.toFixed(2)}\n`;
+  msg += `💳 Outstanding Balances: Rs ${outstanding.toFixed(2)}\n`;
   msg += `👥 Customers: ${allCustomers.length} | 📦 Products: ${allProducts.length}\n`;
 
   if (lowStock.length > 0) {
@@ -71,7 +71,7 @@ async function getDashboardSummaryText(): Promise<string> {
   if (topDebtors.length > 0) {
     msg += `\n💰 <b>Top Unpaid Customers:</b>\n`;
     topDebtors.forEach((c) => {
-      msg += `  • ${c.name}: AED ${c.balance.toFixed(2)}\n`;
+      msg += `  • ${c.name}: Rs ${c.balance.toFixed(2)}\n`;
     });
   }
 
@@ -134,7 +134,7 @@ router.post("/telegram/webhook", async (req, res) => {
 
       let msg = `💳 <b>Outstanding Balances:</b>\n\n`;
       debtors.forEach((d, i) => {
-        msg += `${i + 1}. ${d.name}${d.phone ? ` (${d.phone})` : ""}: AED ${d.balance.toFixed(2)}\n`;
+        msg += `${i + 1}. ${d.name}${d.phone ? ` (${d.phone})` : ""}: Rs ${d.balance.toFixed(2)}\n`;
       });
       await sendTelegramMessage(chatId, msg);
       return;
@@ -223,9 +223,9 @@ Return only valid JSON.`,
 
       let msg = `✅ <b>Sale Recorded!</b>\n\n🎤 "<i>${transcript}</i>"\n\n<b>Items:</b>\n`;
       items.forEach((i) => {
-        msg += `  • ${i.productName} × ${i.quantity} @ AED ${i.unitPrice} = AED ${(i.quantity * i.unitPrice).toFixed(2)}\n`;
+        msg += `  • ${i.productName} × ${i.quantity} @ Rs ${i.unitPrice} = Rs ${(i.quantity * i.unitPrice).toFixed(2)}\n`;
       });
-      msg += `\n<b>Total: AED ${totalAmount.toFixed(2)}</b>`;
+      msg += `\n<b>Total: Rs ${totalAmount.toFixed(2)}</b>`;
       await sendTelegramMessage(chatId, msg);
       return;
     }
@@ -274,11 +274,11 @@ Return only valid JSON.`,
       let msg = `✅ <b>Invoice Saved!</b>\n\n`;
       if (data.vendorOrCustomer) msg += `🏪 Vendor: ${data.vendorOrCustomer}\n`;
       if (data.invoiceDate) msg += `📅 Date: ${data.invoiceDate}\n`;
-      if (data.amount) msg += `💰 Amount: AED ${data.amount}\n`;
+      if (data.amount) msg += `💰 Amount: Rs ${data.amount}\n`;
       if (data.items?.length) {
         msg += `\n<b>Items:</b>\n`;
         (data.items as { name: string; quantity: number; unitPrice: number }[]).slice(0, 5).forEach((i) => {
-          msg += `  • ${i.name} × ${i.quantity} @ AED ${i.unitPrice}\n`;
+          msg += `  • ${i.name} × ${i.quantity} @ Rs ${i.unitPrice}\n`;
         });
       }
       await sendTelegramMessage(chatId, msg);
