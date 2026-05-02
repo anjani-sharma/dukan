@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd ../.. && corepack enable && pnpm install --frozen-lockfile && pnpm --filter @workspace/shop-manager exec vite build --config vite.config.deploy.ts",
+  "outputDirectory": "dist/public",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

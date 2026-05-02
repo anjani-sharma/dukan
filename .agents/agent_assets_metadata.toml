@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "pyov7r93UxPBFQ6jBu36C"
+uri = "file://DEPLOY.md"
+type = "text"
+title = "DOKAN Deployment Guide (Render + Vercel + Neon)"
