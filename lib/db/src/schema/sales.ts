@@ -12,6 +12,7 @@ export const salesTable = pgTable("sales", {
   creditAmount: numeric("credit_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   notes: text("notes"),
   source: text("source").notNull().default("web"),
+  paymentMode: text("payment_mode").notNull().default("cash"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

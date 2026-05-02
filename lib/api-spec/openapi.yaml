@@ -547,6 +547,116 @@ paths:
               schema:
                 $ref: "#/components/schemas/ParseInvoiceImageResult"
 
+  # ─── PURCHASES ───────────────────────────────────────────────────────────────
+  /purchases:
+    get:
+      operationId: listPurchases
+      tags: [products]
+      summary: List all purchases
+      responses:
+        "200":
+          description: List of purchases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Purchase"
+    post:
+      operationId: createPurchase
+      tags: [products]
+      summary: Create a purchase (stock-in)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePurchaseBody"
+      responses:
+        "201":
+          description: Created purchase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+
+  /purchases/{id}:
+    delete:
+      operationId: deletePurchase
+      tags: [products]
+      summary: Delete a purchase
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── RETURNS ─────────────────────────────────────────────────────────────────
+  /returns:
+    get:
+      operationId: listReturns
+      tags: [sales]
+      summary: List all returns
+      responses:
+        "200":
+          description: List of returns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Return"
+    post:
+      operationId: createReturn
+      tags: [sales]
+      summary: Record a return / exchange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReturnBody"
+      responses:
+        "201":
+          description: Created return
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+
+  /returns/{id}:
+    delete:
+      operationId: deleteReturn
+      tags: [sales]
+      summary: Delete a return
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── DASHBOARD CASH DRAWER ────────────────────────────────────────────────────
+  /dashboard/cash-drawer:
+    get:
+      operationId: getCashDrawer
+      tags: [dashboard]
+      summary: Today's cash drawer breakdown by payment mode
+      responses:
+        "200":
+          description: Cash drawer summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashDrawerSummary"
+
   /telegram/webhook:
     post:
       operationId: telegramWebhook
@@ -597,13 +707,19 @@ components:
           type: integer
         unit:
           type: string
+        hsnCode:
+          type: string
+          nullable: true
+        gstRate:
+          type: integer
+          default: 0
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-      required: [id, name, costPrice, sellingPrice, stockQuantity, lowStockThreshold, unit, createdAt, updatedAt]
+      required: [id, name, costPrice, sellingPrice, stockQuantity, lowStockThreshold, unit, gstRate, createdAt, updatedAt]
 
     CreateProductBody:
       type: object
@@ -631,6 +747,12 @@ components:
         unit:
           type: string
           default: "pcs"
+        hsnCode:
+          type: string
+          nullable: true
+        gstRate:
+          type: integer
+          default: 0
       required: [name, costPrice, sellingPrice, stockQuantity]
 
     UpdateProductBody:
@@ -657,6 +779,11 @@ components:
           type: integer
         unit:
           type: string
+        hsnCode:
+          type: string
+          nullable: true
+        gstRate:
+          type: integer
 
     Sale:
       type: object
@@ -685,10 +812,13 @@ components:
         source:
           type: string
           enum: [web, telegram]
+        paymentMode:
+          type: string
+          enum: [cash, upi, card, credit]
         createdAt:
           type: string
           format: date-time
-      required: [id, items, totalAmount, paidAmount, creditAmount, source, createdAt]
+      required: [id, items, totalAmount, paidAmount, creditAmount, source, paymentMode, createdAt]
 
     SaleItem:
       type: object
@@ -725,6 +855,10 @@ components:
           type: string
           enum: [web, telegram]
           default: web
+        paymentMode:
+          type: string
+          enum: [cash, upi, card, credit]
+          default: cash
       required: [items, paidAmount]
 
     CreateSaleItemBody:
@@ -763,6 +897,14 @@ components:
           type: number
         outstandingBalance:
           type: number
+        agingBucket:
+          type: string
+          enum: [current, 30d, 60d, 90d+]
+          nullable: true
+        oldestUnpaidDate:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1000,6 +1142,147 @@ components:
           type: string
           default: "image/jpeg"
       required: [imageBase64]
+
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: integer
+        vendorName:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            type: object
+        totalAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, vendorName, totalAmount, items, createdAt]
+
+    CreatePurchaseBody:
+      type: object
+      properties:
+        vendorName:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: integer
+                nullable: true
+              productName:
+                type: string
+              quantity:
+                type: number
+              unitPrice:
+                type: number
+            required: [productName, quantity, unitPrice]
+        applyStock:
+          type: boolean
+          default: true
+      required: [vendorName, items]
+
+    Return:
+      type: object
+      properties:
+        id:
+          type: integer
+        saleId:
+          type: integer
+          nullable: true
+        customerId:
+          type: integer
+          nullable: true
+        customerName:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        refundMode:
+          type: string
+          enum: [cash, upi, card, store-credit]
+        items:
+          type: array
+          items:
+            type: object
+        totalAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, refundMode, totalAmount, items, createdAt]
+
+    CreateReturnBody:
+      type: object
+      properties:
+        saleId:
+          type: integer
+          nullable: true
+        customerId:
+          type: integer
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        refundMode:
+          type: string
+          enum: [cash, upi, card, store-credit]
+          default: cash
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: integer
+                nullable: true
+              productName:
+                type: string
+              quantity:
+                type: number
+              unitPrice:
+                type: number
+            required: [productName, quantity, unitPrice]
+      required: [items]
+
+    CashDrawerSummary:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        totalSales:
+          type: number
+        cash:
+          type: number
+        upi:
+          type: number
+        card:
+          type: number
+        credit:
+          type: number
+        totalTransactions:
+          type: integer
+      required: [date, totalSales, cash, upi, card, credit, totalTransactions]
 
     ParseInvoiceImageResult:
       type: object

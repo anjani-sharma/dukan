@@ -20,6 +20,8 @@ export interface Product {
   stockQuantity: number;
   lowStockThreshold: number;
   unit: string;
+  hsnCode?: string | null;
+  gstRate: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,6 +36,8 @@ export interface CreateProductBody {
   stockQuantity: number;
   lowStockThreshold?: number;
   unit?: string;
+  hsnCode?: string | null;
+  gstRate?: number;
 }
 
 export interface UpdateProductBody {
@@ -46,6 +50,8 @@ export interface UpdateProductBody {
   stockQuantity?: number;
   lowStockThreshold?: number;
   unit?: string;
+  hsnCode?: string | null;
+  gstRate?: number;
 }
 
 export type SaleSource = (typeof SaleSource)[keyof typeof SaleSource];
@@ -53,6 +59,16 @@ export type SaleSource = (typeof SaleSource)[keyof typeof SaleSource];
 export const SaleSource = {
   web: "web",
   telegram: "telegram",
+} as const;
+
+export type SalePaymentMode =
+  (typeof SalePaymentMode)[keyof typeof SalePaymentMode];
+
+export const SalePaymentMode = {
+  cash: "cash",
+  upi: "upi",
+  card: "card",
+  credit: "credit",
 } as const;
 
 export interface SaleItem {
@@ -73,6 +89,7 @@ export interface Sale {
   creditAmount: number;
   notes?: string | null;
   source: SaleSource;
+  paymentMode: SalePaymentMode;
   createdAt: string;
 }
 
@@ -82,6 +99,16 @@ export type CreateSaleBodySource =
 export const CreateSaleBodySource = {
   web: "web",
   telegram: "telegram",
+} as const;
+
+export type CreateSaleBodyPaymentMode =
+  (typeof CreateSaleBodyPaymentMode)[keyof typeof CreateSaleBodyPaymentMode];
+
+export const CreateSaleBodyPaymentMode = {
+  cash: "cash",
+  upi: "upi",
+  card: "card",
+  credit: "credit",
 } as const;
 
 export interface CreateSaleItemBody {
@@ -97,7 +124,19 @@ export interface CreateSaleBody {
   paidAmount: number;
   notes?: string | null;
   source?: CreateSaleBodySource;
+  paymentMode?: CreateSaleBodyPaymentMode;
 }
+
+export type CustomerAgingBucket =
+  | (typeof CustomerAgingBucket)[keyof typeof CustomerAgingBucket]
+  | null;
+
+export const CustomerAgingBucket = {
+  current: "current",
+  "30d": "30d",
+  "60d": "60d",
+  "90d+": "90d+",
+} as const;
 
 export interface Customer {
   id: number;
@@ -108,6 +147,8 @@ export interface Customer {
   totalCredit: number;
   totalPaid: number;
   outstandingBalance: number;
+  agingBucket?: CustomerAgingBucket;
+  oldestUnpaidDate?: string | null;
   createdAt: string;
 }
 
@@ -241,6 +282,92 @@ export interface TranscribeVoiceResult {
 export interface ParseInvoiceImageBody {
   imageBase64: string;
   mimeType?: string;
+}
+
+export type PurchaseItemsItem = { [key: string]: unknown };
+
+export interface Purchase {
+  id: number;
+  vendorName: string;
+  purchaseDate?: string | null;
+  notes?: string | null;
+  items: PurchaseItemsItem[];
+  totalAmount: number;
+  createdAt: string;
+}
+
+export type CreatePurchaseBodyItemsItem = {
+  productId?: number | null;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export interface CreatePurchaseBody {
+  vendorName: string;
+  purchaseDate?: string | null;
+  notes?: string | null;
+  items: CreatePurchaseBodyItemsItem[];
+  applyStock?: boolean;
+}
+
+export type ReturnRefundMode =
+  (typeof ReturnRefundMode)[keyof typeof ReturnRefundMode];
+
+export const ReturnRefundMode = {
+  cash: "cash",
+  upi: "upi",
+  card: "card",
+  "store-credit": "store-credit",
+} as const;
+
+export type ReturnItemsItem = { [key: string]: unknown };
+
+export interface Return {
+  id: number;
+  saleId?: number | null;
+  customerId?: number | null;
+  customerName?: string | null;
+  reason?: string | null;
+  refundMode: ReturnRefundMode;
+  items: ReturnItemsItem[];
+  totalAmount: number;
+  createdAt: string;
+}
+
+export type CreateReturnBodyRefundMode =
+  (typeof CreateReturnBodyRefundMode)[keyof typeof CreateReturnBodyRefundMode];
+
+export const CreateReturnBodyRefundMode = {
+  cash: "cash",
+  upi: "upi",
+  card: "card",
+  "store-credit": "store-credit",
+} as const;
+
+export type CreateReturnBodyItemsItem = {
+  productId?: number | null;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export interface CreateReturnBody {
+  saleId?: number | null;
+  customerId?: number | null;
+  reason?: string | null;
+  refundMode?: CreateReturnBodyRefundMode;
+  items: CreateReturnBodyItemsItem[];
+}
+
+export interface CashDrawerSummary {
+  date: string;
+  totalSales: number;
+  cash: number;
+  upi: number;
+  card: number;
+  credit: number;
+  totalTransactions: number;
 }
 
 export type ParseInvoiceImageResultItemsItem = {

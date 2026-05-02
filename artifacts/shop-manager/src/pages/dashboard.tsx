@@ -1,6 +1,6 @@
-import { useGetDashboardSummary, useGetRecentActivity, useGetSalesChart, useGetTopCustomers, useListProducts, getGetDashboardSummaryQueryKey, getGetRecentActivityQueryKey, getGetSalesChartQueryKey, getGetTopCustomersQueryKey, getListProductsQueryKey } from "@workspace/api-client-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, Users, Package, AlertTriangle, ShoppingCart, CreditCard, Clock, ArrowRight } from "lucide-react";
+import { useGetDashboardSummary, useGetRecentActivity, useGetSalesChart, useGetTopCustomers, useListProducts, useGetCashDrawer, getGetDashboardSummaryQueryKey, getGetRecentActivityQueryKey, getGetSalesChartQueryKey, getGetTopCustomersQueryKey, getListProductsQueryKey, getGetCashDrawerQueryKey } from "@workspace/api-client-react";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { TrendingUp, Users, Package, AlertTriangle, ShoppingCart, CreditCard, Clock, Banknote, Smartphone, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -21,15 +21,31 @@ function StatCard({ label, value, sub, icon: Icon, accent }: { label: string; va
   );
 }
 
+const PAYMENT_COLORS: Record<string, string> = {
+  cash: "#10b981",
+  upi: "#3b82f6",
+  card: "#a855f7",
+  credit: "#f59e0b",
+};
+
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey() } });
   const { data: activity, isLoading: loadingActivity } = useGetRecentActivity({ limit: 10 }, { query: { queryKey: getGetRecentActivityQueryKey({ limit: 10 }) } });
   const { data: chart } = useGetSalesChart({ days: 30 }, { query: { queryKey: getGetSalesChartQueryKey({ days: 30 }) } });
   const { data: topCustomers } = useGetTopCustomers({ query: { queryKey: getGetTopCustomersQueryKey() } });
   const { data: products } = useListProducts({}, { query: { queryKey: getListProductsQueryKey({}) } });
+  const { data: cashDrawer } = useGetCashDrawer({ query: { queryKey: getGetCashDrawerQueryKey() } });
 
   const fmt = (n?: number) => `₹${(n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtShort = (n?: number) => `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
   const lowStockItems = (products ?? []).filter((p) => p.stockQuantity <= p.lowStockThreshold);
+
+  const drawerPieData = cashDrawer ? [
+    { name: "Cash", value: cashDrawer.cash, color: PAYMENT_COLORS.cash },
+    { name: "UPI", value: cashDrawer.upi, color: PAYMENT_COLORS.upi },
+    { name: "Card", value: cashDrawer.card, color: PAYMENT_COLORS.card },
+    { name: "Credit", value: cashDrawer.credit, color: PAYMENT_COLORS.credit },
+  ].filter((d) => d.value > 0) : [];
 
   return (
     <div className="p-6 space-y-6">
@@ -41,9 +57,7 @@ export default function Dashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loadingSummary ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-card border border-card-border rounded-xl p-5 h-28 animate-pulse" />
-          ))
+          Array.from({ length: 4 }).map((_, i) => <div key={i} className="bg-card border border-card-border rounded-xl p-5 h-28 animate-pulse" />)
         ) : (
           <>
             <StatCard label="Today's Sales" value={fmt(summary?.todaySales)} sub={`${summary?.todayTransactions ?? 0} transactions`} icon={ShoppingCart} />
@@ -54,6 +68,7 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Cash drawer summary + chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sales chart */}
         <div className="lg:col-span-2 bg-card border border-card-border rounded-xl p-5">
@@ -83,7 +98,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Top customers with balance */}
+        {/* Top customers */}
         <div className="bg-card border border-card-border rounded-xl p-5">
           <h2 className="text-sm font-semibold text-foreground mb-4">Top Outstanding Balances</h2>
           {topCustomers && topCustomers.length > 0 ? (
@@ -104,7 +119,81 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Low stock alert panel */}
+      {/* Cash Drawer Summary */}
+      {cashDrawer && (
+        <div className="bg-card border border-card-border rounded-xl p-5" data-testid="cash-drawer-widget">
+          <div className="flex items-center gap-2 mb-5">
+            <LayoutGrid className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Today's Cash Drawer</h2>
+            <span className="text-xs text-muted-foreground ml-auto">{cashDrawer.totalTransactions} transactions</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl" data-testid="drawer-cash">
+                <div className="flex items-center gap-2">
+                  <Banknote className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-medium text-emerald-400">Cash</span>
+                </div>
+                <span className="text-sm font-bold text-emerald-400">{fmtShort(cashDrawer.cash)}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl" data-testid="drawer-upi">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-blue-400">UPI</span>
+                </div>
+                <span className="text-sm font-bold text-blue-400">{fmtShort(cashDrawer.upi)}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl" data-testid="drawer-card">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm font-medium text-purple-400">Card</span>
+                </div>
+                <span className="text-sm font-bold text-purple-400">{fmtShort(cashDrawer.card)}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl" data-testid="drawer-credit">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm font-medium text-amber-400">Credit</span>
+                </div>
+                <span className="text-sm font-bold text-amber-400">{fmtShort(cashDrawer.credit)}</span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-card-border">
+                <span className="text-sm font-semibold text-foreground">Total</span>
+                <span className="text-base font-bold text-foreground">{fmt(cashDrawer.totalSales)}</span>
+              </div>
+            </div>
+            {drawerPieData.length > 0 ? (
+              <div className="flex flex-col items-center">
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie data={drawerPieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
+                      {drawerPieData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: "hsl(222 44% 14%)", border: "1px solid hsl(217 32% 22%)", borderRadius: 8, fontSize: 12 }}
+                      formatter={(v: number) => [`₹${v.toFixed(2)}`]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap gap-2 justify-center mt-1">
+                  {drawerPieData.map((d) => (
+                    <div key={d.name} className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <div className="w-2 h-2 rounded-full" style={{ background: d.color }} />
+                      {d.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">No transactions today</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Low stock alert */}
       {lowStockItems.length > 0 && (
         <div className="bg-card border border-red-500/30 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -130,10 +219,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full", p.stockQuantity === 0 ? "bg-red-500" : "bg-amber-400")}
-                      style={{ width: `${pct}%` }}
-                    />
+                    <div className={cn("h-full rounded-full", p.stockQuantity === 0 ? "bg-red-500" : "bg-amber-400")} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -146,11 +232,7 @@ export default function Dashboard() {
       <div className="bg-card border border-card-border rounded-xl p-5">
         <h2 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h2>
         {loadingActivity ? (
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-10 bg-muted rounded-lg animate-pulse" />
-            ))}
-          </div>
+          <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-10 bg-muted rounded-lg animate-pulse" />)}</div>
         ) : activity && activity.length > 0 ? (
           <div className="space-y-1">
             {activity.map((item) => (

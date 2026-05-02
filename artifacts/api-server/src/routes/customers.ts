@@ -107,6 +107,23 @@ function enrichCustomer(
   const customerPayments = payments.filter((p) => p.customerId === customer.id);
   const totalCredit = customerSales.reduce((sum, s) => sum + parseFloat(s.creditAmount as string), 0);
   const totalPaid = customerPayments.reduce((sum, p) => sum + parseFloat(p.amount as string), 0);
+  const outstandingBalance = Math.max(0, totalCredit - totalPaid);
+
+  // Credit aging — find oldest unpaid sale
+  const unpaidSales = customerSales
+    .filter((s) => parseFloat(s.creditAmount as string) > 0)
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  const oldestUnpaid = unpaidSales[0]?.createdAt ?? null;
+
+  let agingBucket: "current" | "30d" | "60d" | "90d+" | null = null;
+  if (outstandingBalance > 0 && oldestUnpaid) {
+    const daysDiff = (Date.now() - oldestUnpaid.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysDiff >= 90) agingBucket = "90d+";
+    else if (daysDiff >= 60) agingBucket = "60d";
+    else if (daysDiff >= 30) agingBucket = "30d";
+    else agingBucket = "current";
+  }
+
   return {
     id: customer.id,
     name: customer.name,
@@ -115,7 +132,9 @@ function enrichCustomer(
     address: customer.address ?? null,
     totalCredit,
     totalPaid,
-    outstandingBalance: Math.max(0, totalCredit - totalPaid),
+    outstandingBalance,
+    agingBucket,
+    oldestUnpaidDate: oldestUnpaid?.toISOString() ?? null,
     createdAt: customer.createdAt.toISOString(),
   };
 }

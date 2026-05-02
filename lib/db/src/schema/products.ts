@@ -13,6 +13,8 @@ export const productsTable = pgTable("products", {
   stockQuantity: integer("stock_quantity").notNull().default(0),
   lowStockThreshold: integer("low_stock_threshold").notNull().default(5),
   unit: text("unit").notNull().default("pcs"),
+  hsnCode: text("hsn_code"),
+  gstRate: integer("gst_rate").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

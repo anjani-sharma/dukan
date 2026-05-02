@@ -36,6 +36,8 @@ router.post("/products", async (req, res) => {
     stockQuantity: body.stockQuantity,
     lowStockThreshold: body.lowStockThreshold ?? 5,
     unit: body.unit ?? "pcs",
+    hsnCode: (body as { hsnCode?: string | null }).hsnCode ?? null,
+    gstRate: (body as { gstRate?: number }).gstRate ?? 0,
   }).returning();
   return res.status(201).json(toProduct(row));
 });
@@ -60,6 +62,8 @@ router.put("/products/:id", async (req, res) => {
   if (body.stockQuantity !== undefined) updates.stockQuantity = body.stockQuantity;
   if (body.lowStockThreshold !== undefined) updates.lowStockThreshold = body.lowStockThreshold;
   if (body.unit !== undefined) updates.unit = body.unit;
+  if ((body as { hsnCode?: string | null }).hsnCode !== undefined) updates.hsnCode = (body as { hsnCode?: string | null }).hsnCode;
+  if ((body as { gstRate?: number }).gstRate !== undefined) updates.gstRate = (body as { gstRate?: number }).gstRate;
   updates.updatedAt = new Date();
   const [row] = await db.update(productsTable).set(updates).where(eq(productsTable.id, id)).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -84,6 +88,8 @@ function toProduct(row: typeof productsTable.$inferSelect) {
     stockQuantity: row.stockQuantity,
     lowStockThreshold: row.lowStockThreshold,
     unit: row.unit,
+    hsnCode: row.hsnCode ?? null,
+    gstRate: row.gstRate,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

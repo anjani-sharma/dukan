@@ -128,4 +128,30 @@ router.get("/dashboard/top-customers", async (_req, res) => {
   return res.json(result.filter((c) => c.outstandingBalance > 0).slice(0, 10));
 });
 
+router.get("/dashboard/cash-drawer", async (_req, res) => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const allSales = await db.select().from(salesTable);
+  const today = allSales.filter((s) => s.createdAt >= todayStart);
+
+  const breakdown = { cash: 0, upi: 0, card: 0, credit: 0 };
+  for (const s of today) {
+    const mode = (s.paymentMode ?? "cash") as keyof typeof breakdown;
+    const paid = parseFloat(s.paidAmount as string);
+    if (mode in breakdown) breakdown[mode] += paid;
+    else breakdown.cash += paid;
+  }
+  const totalSales = today.reduce((sum, s) => sum + parseFloat(s.totalAmount as string), 0);
+
+  return res.json({
+    date: todayStart.toISOString().slice(0, 10),
+    totalSales,
+    cash: breakdown.cash,
+    upi: breakdown.upi,
+    card: breakdown.card,
+    credit: breakdown.credit,
+    totalTransactions: today.length,
+  });
+});
+
 export default router;

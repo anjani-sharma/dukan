@@ -56,6 +56,7 @@ router.post("/sales", async (req, res) => {
     creditAmount: String(creditAmount),
     notes: body.notes ?? null,
     source: body.source ?? "web",
+    paymentMode: (body as { paymentMode?: string }).paymentMode ?? "cash",
   }).returning();
 
   // Deduct stock — first by productId, then by name-matching for items without ID
@@ -103,6 +104,7 @@ export function toSaleResponse(
     creditAmount: parseFloat(row.creditAmount as string),
     notes: row.notes ?? null,
     source: row.source,
+    paymentMode: row.paymentMode ?? "cash",
     createdAt: row.createdAt.toISOString(),
   };
 }

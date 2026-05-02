@@ -22,6 +22,8 @@ export const ListProductsQueryParams = zod.object({
   lowStock: zod.coerce.boolean().optional(),
 });
 
+export const listProductsResponseGstRateDefault = 0;
+
 export const ListProductsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -33,6 +35,8 @@ export const ListProductsResponseItem = zod.object({
   stockQuantity: zod.number(),
   lowStockThreshold: zod.number(),
   unit: zod.string(),
+  hsnCode: zod.string().nullish(),
+  gstRate: zod.number().default(listProductsResponseGstRateDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -43,6 +47,7 @@ export const ListProductsResponse = zod.array(ListProductsResponseItem);
  */
 export const createProductBodyLowStockThresholdDefault = 5;
 export const createProductBodyUnitDefault = `pcs`;
+export const createProductBodyGstRateDefault = 0;
 
 export const CreateProductBody = zod.object({
   name: zod.string(),
@@ -56,6 +61,8 @@ export const CreateProductBody = zod.object({
     .number()
     .default(createProductBodyLowStockThresholdDefault),
   unit: zod.string().default(createProductBodyUnitDefault),
+  hsnCode: zod.string().nullish(),
+  gstRate: zod.number().default(createProductBodyGstRateDefault),
 });
 
 /**
@@ -64,6 +71,8 @@ export const CreateProductBody = zod.object({
 export const GetProductParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const getProductResponseGstRateDefault = 0;
 
 export const GetProductResponse = zod.object({
   id: zod.number(),
@@ -76,6 +85,8 @@ export const GetProductResponse = zod.object({
   stockQuantity: zod.number(),
   lowStockThreshold: zod.number(),
   unit: zod.string(),
+  hsnCode: zod.string().nullish(),
+  gstRate: zod.number().default(getProductResponseGstRateDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -97,7 +108,11 @@ export const UpdateProductBody = zod.object({
   stockQuantity: zod.number().optional(),
   lowStockThreshold: zod.number().optional(),
   unit: zod.string().optional(),
+  hsnCode: zod.string().nullish(),
+  gstRate: zod.number().optional(),
 });
+
+export const updateProductResponseGstRateDefault = 0;
 
 export const UpdateProductResponse = zod.object({
   id: zod.number(),
@@ -110,6 +125,8 @@ export const UpdateProductResponse = zod.object({
   stockQuantity: zod.number(),
   lowStockThreshold: zod.number(),
   unit: zod.string(),
+  hsnCode: zod.string().nullish(),
+  gstRate: zod.number().default(updateProductResponseGstRateDefault),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -148,6 +165,7 @@ export const ListSalesResponseItem = zod.object({
   creditAmount: zod.number(),
   notes: zod.string().nullish(),
   source: zod.enum(["web", "telegram"]),
+  paymentMode: zod.enum(["cash", "upi", "card", "credit"]),
   createdAt: zod.coerce.date(),
 });
 export const ListSalesResponse = zod.array(ListSalesResponseItem);
@@ -156,6 +174,7 @@ export const ListSalesResponse = zod.array(ListSalesResponseItem);
  * @summary Create a sale
  */
 export const createSaleBodySourceDefault = `web`;
+export const createSaleBodyPaymentModeDefault = `cash`;
 
 export const CreateSaleBody = zod.object({
   customerId: zod.number().nullish(),
@@ -170,6 +189,9 @@ export const CreateSaleBody = zod.object({
   paidAmount: zod.number(),
   notes: zod.string().nullish(),
   source: zod.enum(["web", "telegram"]).default(createSaleBodySourceDefault),
+  paymentMode: zod
+    .enum(["cash", "upi", "card", "credit"])
+    .default(createSaleBodyPaymentModeDefault),
 });
 
 /**
@@ -197,6 +219,7 @@ export const GetSaleResponse = zod.object({
   creditAmount: zod.number(),
   notes: zod.string().nullish(),
   source: zod.enum(["web", "telegram"]),
+  paymentMode: zod.enum(["cash", "upi", "card", "credit"]),
   createdAt: zod.coerce.date(),
 });
 
@@ -224,6 +247,8 @@ export const ListCustomersResponseItem = zod.object({
   totalCredit: zod.number(),
   totalPaid: zod.number(),
   outstandingBalance: zod.number(),
+  agingBucket: zod.enum(["current", "30d", "60d", "90d+"]).nullish(),
+  oldestUnpaidDate: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListCustomersResponse = zod.array(ListCustomersResponseItem);
@@ -255,6 +280,8 @@ export const GetCustomerResponse = zod
     totalCredit: zod.number(),
     totalPaid: zod.number(),
     outstandingBalance: zod.number(),
+    agingBucket: zod.enum(["current", "30d", "60d", "90d+"]).nullish(),
+    oldestUnpaidDate: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -278,6 +305,7 @@ export const GetCustomerResponse = zod
           creditAmount: zod.number(),
           notes: zod.string().nullish(),
           source: zod.enum(["web", "telegram"]),
+          paymentMode: zod.enum(["cash", "upi", "card", "credit"]),
           createdAt: zod.coerce.date(),
         }),
       ),
@@ -316,6 +344,8 @@ export const UpdateCustomerResponse = zod.object({
   totalCredit: zod.number(),
   totalPaid: zod.number(),
   outstandingBalance: zod.number(),
+  agingBucket: zod.enum(["current", "30d", "60d", "90d+"]).nullish(),
+  oldestUnpaidDate: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -529,6 +559,105 @@ export const ParseInvoiceImageResponse = zod.object({
     )
     .nullish(),
   rawText: zod.string().nullish(),
+});
+
+/**
+ * @summary List all purchases
+ */
+export const ListPurchasesResponseItem = zod.object({
+  id: zod.number(),
+  vendorName: zod.string(),
+  purchaseDate: zod.coerce.date().nullish(),
+  notes: zod.string().nullish(),
+  items: zod.array(zod.object({}).passthrough()),
+  totalAmount: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListPurchasesResponse = zod.array(ListPurchasesResponseItem);
+
+/**
+ * @summary Create a purchase (stock-in)
+ */
+export const createPurchaseBodyApplyStockDefault = true;
+
+export const CreatePurchaseBody = zod.object({
+  vendorName: zod.string(),
+  purchaseDate: zod.coerce.date().nullish(),
+  notes: zod.string().nullish(),
+  items: zod.array(
+    zod.object({
+      productId: zod.number().nullish(),
+      productName: zod.string(),
+      quantity: zod.number(),
+      unitPrice: zod.number(),
+    }),
+  ),
+  applyStock: zod.boolean().default(createPurchaseBodyApplyStockDefault),
+});
+
+/**
+ * @summary Delete a purchase
+ */
+export const DeletePurchaseParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List all returns
+ */
+export const ListReturnsResponseItem = zod.object({
+  id: zod.number(),
+  saleId: zod.number().nullish(),
+  customerId: zod.number().nullish(),
+  customerName: zod.string().nullish(),
+  reason: zod.string().nullish(),
+  refundMode: zod.enum(["cash", "upi", "card", "store-credit"]),
+  items: zod.array(zod.object({}).passthrough()),
+  totalAmount: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListReturnsResponse = zod.array(ListReturnsResponseItem);
+
+/**
+ * @summary Record a return / exchange
+ */
+export const createReturnBodyRefundModeDefault = `cash`;
+
+export const CreateReturnBody = zod.object({
+  saleId: zod.number().nullish(),
+  customerId: zod.number().nullish(),
+  reason: zod.string().nullish(),
+  refundMode: zod
+    .enum(["cash", "upi", "card", "store-credit"])
+    .default(createReturnBodyRefundModeDefault),
+  items: zod.array(
+    zod.object({
+      productId: zod.number().nullish(),
+      productName: zod.string(),
+      quantity: zod.number(),
+      unitPrice: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Delete a return
+ */
+export const DeleteReturnParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Today's cash drawer breakdown by payment mode
+ */
+export const GetCashDrawerResponse = zod.object({
+  date: zod.coerce.date(),
+  totalSales: zod.number(),
+  cash: zod.number(),
+  upi: zod.number(),
+  card: zod.number(),
+  credit: zod.number(),
+  totalTransactions: zod.number(),
 });
 
 /**

@@ -9,6 +9,8 @@ import aiRouter from "./ai";
 import telegramRouter from "./telegram";
 import analyticsRouter from "./analytics";
 import vendorPaymentsRouter from "./vendor-payments";
+import purchasesRouter from "./purchases";
+import returnsRouter from "./returns";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(aiRouter);
 router.use(telegramRouter);
 router.use(analyticsRouter);
 router.use(vendorPaymentsRouter);
+router.use(purchasesRouter);
+router.use(returnsRouter);
 
 export default router;

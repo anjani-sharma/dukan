@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useListCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer, useGetCustomer, useRecordPayment, useListCustomerPayments, getListCustomersQueryKey, getGetCustomerQueryKey, getListCustomerPaymentsQueryKey } from "@workspace/api-client-react";
+import { useListCustomers, useCreateCustomer, useGetCustomer, useRecordPayment, useListCustomerPayments, getListCustomersQueryKey, getGetCustomerQueryKey, getListCustomerPaymentsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Users, CreditCard, ChevronRight, X } from "lucide-react";
+import { Plus, Search, Users, CreditCard, ChevronRight, X, MessageCircle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,6 +25,22 @@ const paymentSchema = z.object({
 });
 type CustomerForm = z.infer<typeof customerSchema>;
 type PaymentForm = z.infer<typeof paymentSchema>;
+
+type AgingBucket = ">90d" | "61-90d" | "31-60d" | "0-30d" | null | undefined;
+
+const agingConfig: Record<string, { label: string; className: string }> = {
+  ">90d":   { label: ">90d",   className: "bg-red-500/20 text-red-400 border border-red-500/30" },
+  "61-90d": { label: "61-90d", className: "bg-orange-500/20 text-orange-400 border border-orange-500/30" },
+  "31-60d": { label: "31-60d", className: "bg-amber-500/20 text-amber-400 border border-amber-500/30" },
+  "0-30d":  { label: "0-30d",  className: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30" },
+};
+
+function whatsAppLink(phone: string, name: string, balance: number): string {
+  const digits = phone.replace(/\D/g, "");
+  const e164 = digits.startsWith("91") ? digits : `91${digits}`;
+  const msg = encodeURIComponent(`Dear ${name}, this is a reminder that you have an outstanding balance of ₹${balance.toFixed(2)} at ElectraShop. Please make a payment at your earliest convenience. Thank you!`);
+  return `https://wa.me/${e164}?text=${msg}`;
+}
 
 function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: () => void }) {
   const qc = useQueryClient();
@@ -61,12 +77,9 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
         </div>
 
         {isLoading ? (
-          <div className="p-6 space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-muted rounded-xl animate-pulse" />)}
-          </div>
+          <div className="p-6 space-y-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-muted rounded-xl animate-pulse" />)}</div>
         ) : customer ? (
           <div className="p-6 space-y-6">
-            {/* Balance summary */}
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-muted rounded-xl p-4 text-center">
                 <div className="text-xs text-muted-foreground mb-1">Total Credit</div>
@@ -83,19 +96,26 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             </div>
 
             {customer.outstandingBalance > 0 && (
-              <Button className="w-full" onClick={() => setPaymentOpen(true)} data-testid="button-record-payment">
-                <CreditCard className="w-4 h-4 mr-2" /> Record Payment
-              </Button>
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={() => setPaymentOpen(true)} data-testid="button-record-payment">
+                  <CreditCard className="w-4 h-4 mr-2" /> Record Payment
+                </Button>
+                {customer.phone && (
+                  <Button variant="outline" className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10" asChild data-testid="button-whatsapp-reminder">
+                    <a href={whatsAppLink(customer.phone, customer.name, customer.outstandingBalance)} target="_blank" rel="noreferrer">
+                      <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
+                    </a>
+                  </Button>
+                )}
+              </div>
             )}
 
-            {/* Contact info */}
             <div className="space-y-1 text-sm">
               {customer.phone && <div className="flex gap-2"><span className="text-muted-foreground w-16">Phone</span><span className="text-foreground">{customer.phone}</span></div>}
               {customer.email && <div className="flex gap-2"><span className="text-muted-foreground w-16">Email</span><span className="text-foreground">{customer.email}</span></div>}
               {customer.address && <div className="flex gap-2"><span className="text-muted-foreground w-16">Address</span><span className="text-foreground">{customer.address}</span></div>}
             </div>
 
-            {/* Payment history */}
             {payments && payments.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-foreground mb-3">Payments Received</h3>
@@ -113,7 +133,6 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
               </div>
             )}
 
-            {/* Sales history */}
             {customer.sales && customer.sales.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-foreground mb-3">Sales History</h3>
@@ -124,9 +143,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
                         <div className="text-sm font-medium text-foreground">₹{s.totalAmount.toFixed(2)}</div>
                         <div className="text-xs text-muted-foreground">{format(new Date(s.createdAt), "MMM d, yyyy")}</div>
                       </div>
-                      {s.creditAmount > 0 && (
-                        <div className="text-xs text-amber-400">Outstanding: ₹{s.creditAmount.toFixed(2)}</div>
-                      )}
+                      {s.creditAmount > 0 && <div className="text-xs text-amber-400">Outstanding: ₹{s.creditAmount.toFixed(2)}</div>}
                     </div>
                   ))}
                 </div>
@@ -185,6 +202,9 @@ export default function Customers() {
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone ?? "").includes(search)
   );
 
+  const withBalance = filtered.filter((c) => c.outstandingBalance > 0);
+  const settled = filtered.filter((c) => c.outstandingBalance === 0);
+
   async function onSubmit(data: CustomerForm) {
     await createCustomer.mutateAsync({ data: { name: data.name, phone: data.phone || null, email: data.email || null, address: data.address || null } }, {
       onSuccess: () => {
@@ -196,6 +216,59 @@ export default function Customers() {
     });
   }
 
+  function renderCustomerCard(c: NonNullable<typeof customers>[0]) {
+    const cc = c as unknown as { agingBucket?: AgingBucket; oldestUnpaidDate?: string | null } & typeof c;
+    const aging = cc.agingBucket;
+    const agingCfg = aging ? agingConfig[aging] : null;
+
+    return (
+      <button key={c.id} onClick={() => setSelectedId(c.id)}
+        className="w-full text-left bg-card border border-card-border rounded-xl px-5 py-4 hover:border-primary/30 hover:bg-accent/30 transition-all flex items-center justify-between group"
+        data-testid={`card-customer-${c.id}`}>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-foreground">{c.name}</span>
+            {agingCfg && (
+              <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-medium", agingCfg.className)}>
+                {agingCfg.label}
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-muted-foreground mt-0.5">
+            {c.phone ?? "No phone"}
+            {cc.oldestUnpaidDate && <span className="ml-2 text-xs">· since {format(new Date(cc.oldestUnpaidDate), "MMM d, yyyy")}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {c.outstandingBalance > 0 ? (
+            <>
+              <div className="text-right">
+                <div className="text-sm font-bold text-amber-400">₹{c.outstandingBalance.toFixed(2)}</div>
+                <div className="text-xs text-muted-foreground">outstanding</div>
+              </div>
+              {c.phone && (
+                <a
+                  href={whatsAppLink(c.phone, c.name, c.outstandingBalance)}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+                  title="Send WhatsApp reminder"
+                  data-testid={`button-whatsapp-${c.id}`}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </>
+          ) : (
+            <div className="text-xs text-emerald-400 font-medium">Settled</div>
+          )}
+          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+        </div>
+      </button>
+    );
+  }
+
   return (
     <div className="p-6 space-y-5">
       {selectedId && <CustomerDetail customerId={selectedId} onClose={() => setSelectedId(null)} />}
@@ -203,7 +276,10 @@ export default function Customers() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Customers</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{customers?.length ?? 0} customers</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {customers?.length ?? 0} customers
+            {withBalance.length > 0 && <span className="ml-2 text-amber-400 font-medium">· {withBalance.length} with balance</span>}
+          </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} data-testid="button-add-customer">
           <Plus className="w-4 h-4 mr-1.5" /> Add Customer
@@ -223,26 +299,19 @@ export default function Customers() {
           <p className="text-muted-foreground text-sm">No customers yet.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((c) => (
-            <button key={c.id} onClick={() => setSelectedId(c.id)} className="w-full text-left bg-card border border-card-border rounded-xl px-5 py-4 hover:border-primary/30 hover:bg-accent/30 transition-all flex items-center justify-between group" data-testid={`card-customer-${c.id}`}>
-              <div>
-                <div className="font-medium text-foreground">{c.name}</div>
-                <div className="text-sm text-muted-foreground mt-0.5">{c.phone ?? "No phone"}</div>
-              </div>
-              <div className="flex items-center gap-4">
-                {c.outstandingBalance > 0 ? (
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-amber-400">₹{c.outstandingBalance.toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground">outstanding</div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-emerald-400 font-medium">Settled</div>
-                )}
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </div>
-            </button>
-          ))}
+        <div className="space-y-5">
+          {withBalance.length > 0 && (
+            <div>
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Outstanding Balance</h2>
+              <div className="space-y-2">{withBalance.map(renderCustomerCard)}</div>
+            </div>
+          )}
+          {settled.length > 0 && (
+            <div>
+              {withBalance.length > 0 && <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Settled</h2>}
+              <div className="space-y-2">{settled.map(renderCustomerCard)}</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -255,13 +324,13 @@ export default function Customers() {
                 <FormItem><FormLabel>Name</FormLabel><FormControl><Input placeholder="Customer name" {...field} data-testid="input-customer-name" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="+971 50 123 4567" {...field} data-testid="input-customer-phone" /></FormControl></FormItem>
+                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input placeholder="9876543210" {...field} data-testid="input-customer-phone" /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="email" render={({ field }) => (
                 <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="email@example.com" {...field} data-testid="input-customer-email" /></FormControl></FormItem>
               )} />
               <FormField control={form.control} name="address" render={({ field }) => (
-                <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="City, Country" {...field} data-testid="input-customer-address" /></FormControl></FormItem>
+                <FormItem><FormLabel>Address</FormLabel><FormControl><Input placeholder="City, State" {...field} data-testid="input-customer-address" /></FormControl></FormItem>
               )} />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
