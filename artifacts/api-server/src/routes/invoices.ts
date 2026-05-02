@@ -161,18 +161,32 @@ router.post("/invoices/:id/apply-stock", async (req, res) => {
   if (!lineItems || lineItems.length === 0) return res.status(400).json({ error: "No line items on this invoice" });
 
   const allProducts = await db.select().from(productsTable);
-  const results: { name: string; matched: boolean; productId?: number }[] = [];
+  const results: { name: string; matched: boolean; created?: boolean; productId?: number }[] = [];
 
   for (const item of lineItems) {
+    const quantity = Math.max(0, Math.round(Number(item.quantity) || 0));
+    const unitPrice = Number(item.unitPrice) || 0;
     const match = bestProductMatch(item.name, allProducts);
     if (match) {
       await db.update(productsTable).set({
-        stockQuantity: match.stockQuantity + Math.round(item.quantity),
+        stockQuantity: match.stockQuantity + quantity,
+        costPrice: unitPrice > 0 ? String(unitPrice) : match.costPrice,
         updatedAt: new Date(),
       }).where(eq(productsTable.id, match.id));
       results.push({ name: item.name, matched: true, productId: match.id });
     } else {
-      results.push({ name: item.name, matched: false });
+      const [created] = await db.insert(productsTable).values({
+        name: item.name.trim(),
+        description: "Created from scanned invoice",
+        costPrice: String(unitPrice),
+        sellingPrice: String(unitPrice),
+        stockQuantity: quantity,
+        lowStockThreshold: 5,
+        unit: "pcs",
+        gstRate: 0,
+      }).returning();
+      if (created) allProducts.push(created);
+      results.push({ name: item.name, matched: true, created: true, productId: created?.id });
     }
   }
 

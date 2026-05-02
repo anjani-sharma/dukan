@@ -238,15 +238,16 @@ export function QuickEntry() {
         try {
           const stockRes = await fetch(`${API_BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
           if (stockRes.ok) {
-            const stockData = await stockRes.json() as { results: { matched: boolean; name: string }[] };
+            const stockData = await stockRes.json() as { results: { matched: boolean; created?: boolean; name: string }[] };
             const matched = stockData.results.filter((r) => r.matched).length;
+            const created = stockData.results.filter((r) => r.created).length;
             const total = stockData.results.length;
             setStockResult({ matched, total });
             qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
             if (matched > 0) {
               toast({
                 title: "Invoice saved — stock updated",
-                description: `${matched} of ${total} item${total !== 1 ? "s" : ""} matched & stock increased`,
+                description: `${matched} of ${total} item${total !== 1 ? "s" : ""} updated${created > 0 ? `, ${created} new products created` : ""}`,
               });
             } else {
               const unmatched = stockData.results.map((r) => r.name).join(", ");

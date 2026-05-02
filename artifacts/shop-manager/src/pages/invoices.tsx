@@ -259,9 +259,10 @@ function ViewInvoiceDialog({ invoice, onClose }: { invoice: InvoiceRow; onClose:
       const r = await fetch(`${API_BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
       const data = await r.json();
       if (!r.ok) { toast({ title: data.error ?? "Failed", variant: "destructive" }); return; }
+      const created = (data.results as { created?: boolean }[]).filter((x) => x.created).length;
       const matched = (data.results as { matched: boolean }[]).filter((x) => x.matched).length;
       const unmatched = data.results.length - matched;
-      toast({ title: `Stock updated`, description: `${matched} products updated${unmatched > 0 ? `, ${unmatched} not matched` : ""}` });
+      toast({ title: `Stock updated`, description: `${matched} products updated${created > 0 ? `, ${created} new products created` : ""}${unmatched > 0 ? `, ${unmatched} not matched` : ""}` });
       qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
       qc.invalidateQueries({ queryKey: ["products"] });
     } finally {
@@ -447,9 +448,10 @@ export default function Invoices() {
         });
         return invoice;
       }
+      const created = (sd.results as { created?: boolean }[])?.filter((x) => x.created).length ?? 0;
       const matched = (sd.results as { matched: boolean }[])?.filter((x) => x.matched).length ?? 0;
       const unmatched = (sd.results?.length ?? 0) - matched;
-      toast({ title: "Stock updated", description: `${matched} products updated${unmatched > 0 ? `, ${unmatched} items not matched to products` : ""}` });
+      toast({ title: "Stock updated", description: `${matched} products updated${created > 0 ? `, ${created} new products created` : ""}${unmatched > 0 ? `, ${unmatched} items not matched to products` : ""}` });
       qc.invalidateQueries({ queryKey: ["products"] });
     }
 
