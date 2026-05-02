@@ -53,6 +53,7 @@ export function QuickEntry() {
     items?: { name: string; quantity: number; unitPrice: number; subtotal: number }[];
   } | null>(null);
   const [stockResult, setStockResult] = useState<{ matched: number; total: number } | null>(null);
+  const [editableItems, setEditableItems] = useState<{ name: string; quantity: number }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
@@ -75,6 +76,7 @@ export function QuickEntry() {
     setInvoicePreview(null);
     setInvoiceData(null);
     setStockResult(null);
+    setEditableItems([]);
   }
 
   function close() {
@@ -178,6 +180,9 @@ export function QuickEntry() {
           invoiceDate: result.invoiceDate ?? undefined,
           items: items.length > 0 ? items : undefined,
         });
+        if (items.length > 0) {
+          setEditableItems(items.map((it) => ({ name: it.name, quantity: it.quantity })));
+        }
         const desc = items.length > 0
           ? `${items.length} item${items.length > 1 ? "s" : ""} extracted — stock will update on save`
           : (result.vendorOrCustomer ?? "Details extracted");
@@ -200,7 +205,7 @@ export function QuickEntry() {
         amount: invoiceData?.amount ?? null,
         invoiceDate: invoiceData?.invoiceDate ?? null,
         notes: "Uploaded via Quick Entry",
-        lineItems: invoiceData?.items ?? null,
+        lineItems: editableItems.length > 0 ? editableItems : null,
       }),
     });
 
@@ -212,8 +217,8 @@ export function QuickEntry() {
     const invoice = await res.json() as { id: number };
     qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
 
-    // Auto-apply stock if items were extracted
-    if (invoiceData?.items?.length) {
+    // Auto-apply stock if items were confirmed
+    if (editableItems.length > 0) {
       try {
         const stockRes = await fetch(`/api/invoices/${invoice.id}/apply-stock`, {
           method: "POST",
@@ -501,21 +506,53 @@ export function QuickEntry() {
                         </div>
                       )}
 
-                      {invoiceData.items && invoiceData.items.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-border/50">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                            Items — stock will be updated
+                      <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Items to stock-in
                           </p>
-                          <div className="space-y-1.5">
-                            {invoiceData.items.map((item, i) => (
-                              <div key={i} className="flex justify-between text-xs">
-                                <span className="text-foreground truncate pr-2">{item.name}</span>
-                                <span className="text-muted-foreground shrink-0">×{item.quantity}</span>
-                              </div>
-                            ))}
-                          </div>
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80"
+                            onClick={() => setEditableItems((prev) => [...prev, { name: "", quantity: 1 }])}
+                          >
+                            <Plus className="w-3 h-3" /> Add row
+                          </button>
                         </div>
-                      )}
+
+                        {editableItems.length === 0 && (
+                          <p className="text-xs text-muted-foreground italic">No items extracted — add them manually or save without stock update.</p>
+                        )}
+
+                        {editableItems.map((item, i) => (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <Input
+                              value={item.name}
+                              onChange={(e) => setEditableItems((prev) => prev.map((it, idx) => idx === i ? { ...it, name: e.target.value } : it))}
+                              placeholder="Item name"
+                              className="h-8 text-xs flex-1 min-w-0"
+                            />
+                            <Input
+                              type="number"
+                              min={1}
+                              value={item.quantity}
+                              onChange={(e) => setEditableItems((prev) => prev.map((it, idx) => idx === i ? { ...it, quantity: Number(e.target.value) || 1 } : it))}
+                              className="h-8 text-xs w-16 shrink-0 text-center"
+                            />
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => setEditableItems((prev) => prev.filter((_, idx) => idx !== i))}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {editableItems.length > 0 && (
+                          <p className="text-xs text-muted-foreground">Review & correct the list, then tap Save to update stock.</p>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -526,7 +563,7 @@ export function QuickEntry() {
                       data-testid="button-quick-confirm-invoice"
                     >
                       {parseImage.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ChevronRight className="w-4 h-4 mr-2" />}
-                      {invoiceData.items?.length ? "Save & Update Stock" : "Save Invoice"}
+                      {editableItems.length > 0 ? "Save & Update Stock" : "Save Invoice"}
                     </Button>
                   )}
 
