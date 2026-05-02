@@ -420,7 +420,7 @@ export default function Invoices() {
   });
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {proofInvoice && <PaymentProofDialog invoice={proofInvoice} onClose={() => setProofInvoice(null)} />}
       {viewInvoice && <ViewInvoiceDialog invoice={viewInvoice} onClose={() => setViewInvoice(null)} />}
       {reviewOpen && parsedData && (
@@ -471,57 +471,97 @@ export default function Invoices() {
           <p className="text-muted-foreground text-sm">No invoices yet. Upload your first invoice.</p>
         </div>
       ) : (
-        <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor / Customer</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-card-border">
-              {filtered.slice().reverse().map((inv) => (
-                <tr key={inv.id} className="hover:bg-accent/30 transition-colors cursor-pointer" onClick={() => setViewInvoice(inv)}>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <span className={cn("text-xs px-2 py-0.5 rounded-full", inv.type === "purchase" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400")}>{inv.type}</span>
-                  </td>
-                  <td className="px-4 py-3 text-foreground">{inv.vendorOrCustomer ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{inv.invoiceDate ?? format(new Date(inv.createdAt), "MMM d, yyyy")}</td>
-                  <td className="px-4 py-3 text-right font-medium text-foreground">{inv.amount != null ? `₹${inv.amount.toFixed(2)}` : "—"}</td>
-                  <td className="px-4 py-3">
-                    {inv.type === "purchase" ? (
-                      <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", inv.paid ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400")}>{inv.paid ? "Paid" : "Unpaid"}</span>
-                    ) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-center">
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {filtered.slice().reverse().map((inv) => (
+              <div key={inv.id} className="bg-card border border-card-border rounded-xl px-4 py-3 space-y-1.5 cursor-pointer" onClick={() => setViewInvoice(inv)}>
+                <div className="flex items-center justify-between">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full", inv.type === "purchase" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400")}>{inv.type}</span>
+                  <span className="font-bold text-foreground">{inv.amount != null ? `₹${inv.amount.toFixed(2)}` : "—"}</span>
+                </div>
+                <div className="font-medium text-foreground">{inv.vendorOrCustomer ?? "—"}</div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{inv.invoiceDate ?? format(new Date(inv.createdAt), "MMM d, yyyy")}</span>
+                  {inv.type === "purchase" && (
+                    <span className={cn("px-1.5 py-0.5 rounded-full", inv.paid ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400")}>{inv.paid ? "Paid" : "Unpaid"}</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-card-border" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
                     {inv.type === "purchase" && (
                       inv.stockUpdated
-                        ? <span title="Stock updated"><CheckCircle className="w-4 h-4 text-emerald-400 mx-auto" /></span>
-                        : (inv.lineItems as LineItem[] | null)?.length ? <span title="Stock not yet updated"><RotateCcw className="w-4 h-4 text-amber-400 mx-auto" /></span> : null
+                        ? <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Stock done</span>
+                        : (inv.lineItems as LineItem[] | null)?.length ? <span className="text-xs text-amber-400 flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Stock pending</span> : null
                     )}
-                  </td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1">
-                      {inv.type === "purchase" && (
-                        <button onClick={() => setProofInvoice(inv)} className={cn("text-xs px-2 py-1 rounded-lg transition-colors", inv.paymentProofUrl ? "bg-primary/20 text-primary hover:bg-primary/30" : "bg-muted text-muted-foreground hover:bg-accent")}>
-                          {inv.paymentProofUrl ? "Receipt" : "Pay"}
-                        </button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(inv.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </td>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {inv.type === "purchase" && (
+                      <button onClick={() => setProofInvoice(inv)} className={cn("text-xs px-2 py-1 rounded-lg transition-colors", inv.paymentProofUrl ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
+                        {inv.paymentProofUrl ? "Receipt" : "Pay"}
+                      </button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(inv.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block bg-card border border-card-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-card-border bg-muted/30">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor / Customer</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock</th>
+                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-card-border">
+                {filtered.slice().reverse().map((inv) => (
+                  <tr key={inv.id} className="hover:bg-accent/30 transition-colors cursor-pointer" onClick={() => setViewInvoice(inv)}>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full", inv.type === "purchase" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400")}>{inv.type}</span>
+                    </td>
+                    <td className="px-4 py-3 text-foreground">{inv.vendorOrCustomer ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{inv.invoiceDate ?? format(new Date(inv.createdAt), "MMM d, yyyy")}</td>
+                    <td className="px-4 py-3 text-right font-medium text-foreground">{inv.amount != null ? `₹${inv.amount.toFixed(2)}` : "—"}</td>
+                    <td className="px-4 py-3">
+                      {inv.type === "purchase" ? (
+                        <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", inv.paid ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400")}>{inv.paid ? "Paid" : "Unpaid"}</span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {inv.type === "purchase" && (
+                        inv.stockUpdated
+                          ? <span title="Stock updated"><CheckCircle className="w-4 h-4 text-emerald-400 mx-auto" /></span>
+                          : (inv.lineItems as LineItem[] | null)?.length ? <span title="Stock not yet updated"><RotateCcw className="w-4 h-4 text-amber-400 mx-auto" /></span> : null
+                      )}
+                    </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        {inv.type === "purchase" && (
+                          <button onClick={() => setProofInvoice(inv)} className={cn("text-xs px-2 py-1 rounded-lg transition-colors", inv.paymentProofUrl ? "bg-primary/20 text-primary hover:bg-primary/30" : "bg-muted text-muted-foreground hover:bg-accent")}>
+                            {inv.paymentProofUrl ? "Receipt" : "Pay"}
+                          </button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(inv.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Add invoice dialog */}

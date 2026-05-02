@@ -115,7 +115,7 @@ export default function Purchases() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* Duplicate purchase warning */}
       <Dialog open={!!dupWarning} onOpenChange={(o) => { if (!o) setDupWarning(null); }}>
         <DialogContent>
@@ -147,40 +147,66 @@ export default function Purchases() {
           <p className="text-muted-foreground text-sm">No purchases yet. Record your first stock-in.</p>
         </div>
       ) : (
-        <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Items</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Total</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes</th>
-                <th className="px-4 py-3 w-12"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-card-border">
-              {(purchases ?? []).slice().reverse().map((p) => (
-                <tr key={p.id} className="hover:bg-accent/30 transition-colors" data-testid={`row-purchase-${p.id}`}>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {(purchases ?? []).slice().reverse().map((p) => (
+              <div key={p.id} className="bg-card border border-card-border rounded-xl px-4 py-3 space-y-1.5" data-testid={`row-purchase-${p.id}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
                     {p.purchaseDate ? format(new Date(p.purchaseDate), "MMM d, yyyy") : format(new Date(p.createdAt), "MMM d, yyyy")}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-foreground">{p.vendorName}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
-                    {(p.items as { productName: string; quantity: number }[]).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-foreground">₹{p.totalAmount.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{p.notes ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)} data-testid={`button-delete-purchase-${p.id}`}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </td>
+                  </span>
+                  <span className="font-bold text-foreground">₹{p.totalAmount.toFixed(2)}</span>
+                </div>
+                <div className="font-medium text-foreground">{p.vendorName}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {(p.items as { productName: string; quantity: number }[]).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
+                </div>
+                {p.notes && <div className="text-xs text-muted-foreground/70 italic">{p.notes}</div>}
+                <div className="flex justify-end pt-1 border-t border-card-border">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)} data-testid={`button-delete-purchase-${p.id}`}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block bg-card border border-card-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-card-border bg-muted/30">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Items</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Total</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes</th>
+                  <th className="px-4 py-3 w-12"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-card-border">
+                {(purchases ?? []).slice().reverse().map((p) => (
+                  <tr key={p.id} className="hover:bg-accent/30 transition-colors" data-testid={`row-purchase-${p.id}`}>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                      {p.purchaseDate ? format(new Date(p.purchaseDate), "MMM d, yyyy") : format(new Date(p.createdAt), "MMM d, yyyy")}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-foreground">{p.vendorName}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
+                      {(p.items as { productName: string; quantity: number }[]).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-foreground">₹{p.totalAmount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{p.notes ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)} data-testid={`button-delete-purchase-${p.id}`}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

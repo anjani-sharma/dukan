@@ -186,7 +186,7 @@ export function QuickEntry() {
       {/* Floating button */}
       <button
         onClick={() => { setOpen(true); resetAll(); }}
-        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+        className="fixed bottom-[4.5rem] right-4 md:bottom-6 md:right-6 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
         data-testid="button-quick-entry"
         aria-label="Quick entry"
       >

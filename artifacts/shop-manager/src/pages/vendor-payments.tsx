@@ -334,7 +334,7 @@ export default function VendorPayments() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {addDialogOpen && <AddPaymentDialog prefillVendor={prefillVendor} onClose={() => setAddDialogOpen(false)} />}
 
       <div className="flex items-center justify-between">
@@ -347,7 +347,7 @@ export default function VendorPayments() {
 
       {/* Summary bar */}
       {!summaryLoading && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 md:gap-4">
           <div className="bg-card border border-card-border rounded-xl p-4">
             <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Billed by Vendors</div>
             <div className="text-xl font-bold text-foreground">{fmt(totalBilled)}</div>

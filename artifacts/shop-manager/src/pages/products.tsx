@@ -225,7 +225,7 @@ export default function Products() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* Duplicate product warning */}
       <Dialog open={!!dupWarning} onOpenChange={(o) => { if (!o) setDupWarning(null); }}>
         <DialogContent>
@@ -249,11 +249,13 @@ export default function Products() {
         </div>
         <div className="flex gap-2">
           <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvFile} data-testid="input-csv-file" />
-          <Button variant="outline" onClick={() => csvInputRef.current?.click()} data-testid="button-csv-import">
-            <Upload className="w-4 h-4 mr-1.5" /> Import CSV
+          <Button variant="outline" onClick={() => csvInputRef.current?.click()} data-testid="button-csv-import" title="Import CSV">
+            <Upload className="w-4 h-4 md:mr-1.5" />
+            <span className="hidden md:inline">Import CSV</span>
           </Button>
           <Button onClick={openAdd} data-testid="button-add-product">
-            <Plus className="w-4 h-4 mr-1.5" /> Add Product
+            <Plus className="w-4 h-4 md:mr-1.5" />
+            <span className="hidden md:inline">Add Product</span>
           </Button>
         </div>
       </div>
@@ -271,72 +273,114 @@ export default function Products() {
           <p className="text-muted-foreground text-sm">No products yet. Add your first product.</p>
         </div>
       ) : (
-        <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Product</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">HSN / GST</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Cost</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Price</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Margin</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock</th>
-                <th className="px-4 py-3 w-28"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-card-border">
-              {filtered.map((p) => {
-                const pp = p as unknown as { hsnCode?: string; gstRate?: number } & typeof p;
-                const isLow = p.stockQuantity <= p.lowStockThreshold;
-                const margin = p.costPrice > 0 ? ((p.sellingPrice - p.costPrice) / p.costPrice * 100) : 0;
-                return (
-                  <tr key={p.id} className={cn("hover:bg-accent/30 transition-colors", isLow && "bg-red-500/5")} data-testid={`row-product-${p.id}`}>
-                    <td className="px-4 py-3">
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {filtered.map((p) => {
+              const pp = p as unknown as { hsnCode?: string; gstRate?: number } & typeof p;
+              const isLow = p.stockQuantity <= p.lowStockThreshold;
+              const margin = p.costPrice > 0 ? ((p.sellingPrice - p.costPrice) / p.costPrice * 100) : 0;
+              return (
+                <div key={p.id} className={cn("bg-card border border-card-border rounded-xl px-4 py-3 space-y-1.5", isLow && "border-red-500/40")} data-testid={`row-product-${p.id}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
                       <div className="font-medium text-foreground">{p.name}</div>
                       {p.sku && <div className="text-xs text-muted-foreground">{p.sku}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.category ?? "—"}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {pp.hsnCode && <span className="mr-1">{pp.hsnCode}</span>}
-                      {(pp.gstRate ?? 0) > 0 && <span className="bg-blue-500/15 text-blue-400 px-1.5 py-0.5 rounded-full">{pp.gstRate}%</span>}
-                      {!pp.hsnCode && !(pp.gstRate) && "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">₹{p.costPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-foreground">₹{p.sellingPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={cn("text-xs font-medium", margin >= 20 ? "text-emerald-400" : margin >= 10 ? "text-amber-400" : "text-muted-foreground")}>
-                        {margin > 0 ? `${margin.toFixed(0)}%` : "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className={cn("inline-flex items-center gap-1 font-medium", isLow ? "text-red-400" : "text-emerald-400")}>
-                          {isLow && <AlertTriangle className="w-3 h-3" />}
-                          {p.stockQuantity} {p.unit}
+                    </div>
+                    <span className={cn("text-sm font-bold flex-shrink-0", isLow ? "text-red-400" : "text-emerald-400")}>
+                      {isLow && <AlertTriangle className="w-3 h-3 inline mr-0.5" />}
+                      {p.stockQuantity} {p.unit}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>₹{p.sellingPrice.toFixed(2)}</span>
+                    {margin > 0 && <span className={cn(margin >= 20 ? "text-emerald-400" : margin >= 10 ? "text-amber-400" : "")}>{margin.toFixed(0)}% margin</span>}
+                    {p.category && <span>{p.category}</span>}
+                    {(pp.gstRate ?? 0) > 0 && <span className="bg-blue-500/15 text-blue-400 px-1.5 py-0.5 rounded-full">GST {pp.gstRate}%</span>}
+                  </div>
+                  <div className="flex items-center justify-end gap-1 pt-1 border-t border-card-border">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-400 hover:text-emerald-300" onClick={() => openAdjust(p)} data-testid={`button-adjust-stock-${p.id}`}>
+                      <PackagePlus className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)} data-testid={`button-edit-product-${p.id}`}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)} data-testid={`button-delete-product-${p.id}`}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block bg-card border border-card-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-card-border bg-muted/30">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Product</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Category</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">HSN / GST</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Cost</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Price</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Margin</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Stock</th>
+                  <th className="px-4 py-3 w-28"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-card-border">
+                {filtered.map((p) => {
+                  const pp = p as unknown as { hsnCode?: string; gstRate?: number } & typeof p;
+                  const isLow = p.stockQuantity <= p.lowStockThreshold;
+                  const margin = p.costPrice > 0 ? ((p.sellingPrice - p.costPrice) / p.costPrice * 100) : 0;
+                  return (
+                    <tr key={p.id} className={cn("hover:bg-accent/30 transition-colors", isLow && "bg-red-500/5")} data-testid={`row-product-${p.id}`}>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-foreground">{p.name}</div>
+                        {p.sku && <div className="text-xs text-muted-foreground">{p.sku}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.category ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {pp.hsnCode && <span className="mr-1">{pp.hsnCode}</span>}
+                        {(pp.gstRate ?? 0) > 0 && <span className="bg-blue-500/15 text-blue-400 px-1.5 py-0.5 rounded-full">{pp.gstRate}%</span>}
+                        {!pp.hsnCode && !(pp.gstRate) && "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">₹{p.costPrice.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-foreground">₹{p.sellingPrice.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={cn("text-xs font-medium", margin >= 20 ? "text-emerald-400" : margin >= 10 ? "text-amber-400" : "text-muted-foreground")}>
+                          {margin > 0 ? `${margin.toFixed(0)}%` : "—"}
                         </span>
-                        {isLow && <span className="text-xs text-red-400/70">min {p.lowStockThreshold}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-400 hover:text-emerald-300" onClick={() => openAdjust(p)} title="Adjust stock" data-testid={`button-adjust-stock-${p.id}`}>
-                          <PackagePlus className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)} data-testid={`button-edit-product-${p.id}`}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)} data-testid={`button-delete-product-${p.id}`}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className={cn("inline-flex items-center gap-1 font-medium", isLow ? "text-red-400" : "text-emerald-400")}>
+                            {isLow && <AlertTriangle className="w-3 h-3" />}
+                            {p.stockQuantity} {p.unit}
+                          </span>
+                          {isLow && <span className="text-xs text-red-400/70">min {p.lowStockThreshold}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-400 hover:text-emerald-300" onClick={() => openAdjust(p)} title="Adjust stock" data-testid={`button-adjust-stock-${p.id}`}>
+                            <PackagePlus className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)} data-testid={`button-edit-product-${p.id}`}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)} data-testid={`button-delete-product-${p.id}`}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Add/Edit product dialog */}

@@ -334,7 +334,7 @@ export default function Sales() {
   };
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* Duplicate sale warning */}
       <Dialog open={!!dupWarning} onOpenChange={(o) => { if (!o) setDupWarning(null); }}>
         <DialogContent>
@@ -378,63 +378,109 @@ export default function Sales() {
           <p className="text-muted-foreground text-sm">No sales yet. Record your first sale.</p>
         </div>
       ) : (
-        <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-card-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Customer</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Items</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Total</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Credit</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Mode</th>
-                <th className="px-4 py-3 w-24"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-card-border">
-              {(sales ?? []).slice().reverse().map((s) => {
-                const sale = s as unknown as Sale;
-                return (
-                  <tr key={s.id} className="hover:bg-accent/30 transition-colors" data-testid={`row-sale-${s.id}`}>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{format(new Date(s.createdAt), "MMM d, h:mm a")}</td>
-                    <td className="px-4 py-3 text-foreground">{s.customerName ?? "Walk-in"}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
-                      {(s.items as { productName: string; quantity: number }[]).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-foreground">₹{s.totalAmount.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {s.creditAmount > 0
-                        ? <span className="text-amber-400 font-medium">₹{s.creditAmount.toFixed(2)}</span>
-                        : <span className="text-emerald-400 text-xs">Paid</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      {sale.paymentMode && (
-                        <span className={cn("text-xs px-2 py-0.5 rounded-full", paymentModeColor[sale.paymentMode] ?? "bg-muted text-muted-foreground")}>
-                          {sale.paymentMode}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-blue-400" title="Print GST invoice"
-                          onClick={() => printGstInvoice(sale, productList.map((p) => ({ id: p.id, name: p.name, hsnCode: (p as { hsnCode?: string | null }).hsnCode, gstRate: (p as { gstRate?: number | null }).gstRate })))}>
-                          <Printer className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-amber-400" title="Record return"
-                          onClick={() => openReturn({ ...sale, createdAt: new Date(s.createdAt), paidAmount: s.totalAmount - s.creditAmount })}>
-                          <RotateCcw className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(s.id)} data-testid={`button-delete-sale-${s.id}`}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-2">
+            {(sales ?? []).slice().reverse().map((s) => {
+              const sale = s as unknown as Sale;
+              return (
+                <div key={s.id} className="bg-card border border-card-border rounded-xl px-4 py-3 space-y-2" data-testid={`row-sale-${s.id}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{format(new Date(s.createdAt), "MMM d, h:mm a")}</span>
+                    {sale.paymentMode && (
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full", paymentModeColor[sale.paymentMode] ?? "bg-muted text-muted-foreground")}>
+                        {sale.paymentMode}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-foreground">{s.customerName ?? "Walk-in"}</span>
+                    <span className="text-base font-bold text-foreground">₹{s.totalAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {(s.items as { productName: string; quantity: number }[]).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-card-border">
+                    {s.creditAmount > 0
+                      ? <span className="text-xs text-amber-400 font-medium">Credit: ₹{s.creditAmount.toFixed(2)}</span>
+                      : <span className="text-xs text-emerald-400">Fully Paid</span>}
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-blue-400"
+                        onClick={() => printGstInvoice(sale, productList.map((p) => ({ id: p.id, name: p.name, hsnCode: (p as { hsnCode?: string | null }).hsnCode, gstRate: (p as { gstRate?: number | null }).gstRate })))}>
+                        <Printer className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-amber-400"
+                        onClick={() => openReturn({ ...sale, createdAt: new Date(s.createdAt), paidAmount: s.totalAmount - s.creditAmount })}>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(s.id)} data-testid={`button-delete-sale-${s.id}`}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden md:block bg-card border border-card-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-card-border bg-muted/30">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Customer</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Items</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Total</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Credit</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Mode</th>
+                  <th className="px-4 py-3 w-24"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-card-border">
+                {(sales ?? []).slice().reverse().map((s) => {
+                  const sale = s as unknown as Sale;
+                  return (
+                    <tr key={s.id} className="hover:bg-accent/30 transition-colors" data-testid={`row-sale-${s.id}`}>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{format(new Date(s.createdAt), "MMM d, h:mm a")}</td>
+                      <td className="px-4 py-3 text-foreground">{s.customerName ?? "Walk-in"}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs max-w-xs truncate">
+                        {(s.items as { productName: string; quantity: number }[]).map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-foreground">₹{s.totalAmount.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {s.creditAmount > 0
+                          ? <span className="text-amber-400 font-medium">₹{s.creditAmount.toFixed(2)}</span>
+                          : <span className="text-emerald-400 text-xs">Paid</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {sale.paymentMode && (
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full", paymentModeColor[sale.paymentMode] ?? "bg-muted text-muted-foreground")}>
+                            {sale.paymentMode}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-blue-400" title="Print GST invoice"
+                            onClick={() => printGstInvoice(sale, productList.map((p) => ({ id: p.id, name: p.name, hsnCode: (p as { hsnCode?: string | null }).hsnCode, gstRate: (p as { gstRate?: number | null }).gstRate })))}>
+                            <Printer className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-amber-400" title="Record return"
+                            onClick={() => openReturn({ ...sale, createdAt: new Date(s.createdAt), paidAmount: s.totalAmount - s.creditAmount })}>
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(s.id)} data-testid={`button-delete-sale-${s.id}`}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* New Sale Dialog */}
