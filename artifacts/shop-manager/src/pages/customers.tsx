@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useListCustomers, useCreateCustomer, useGetCustomer, useRecordPayment, useListCustomerPayments, getListCustomersQueryKey, getGetCustomerQueryKey, getListCustomerPaymentsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Users, CreditCard, ChevronRight, X, MessageCircle } from "lucide-react";
+import { Plus, Search, Users, CreditCard, ChevronRight, X, MessageCircle, AlertTriangle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -49,13 +49,15 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
   const { data: payments } = useListCustomerPayments(customerId, { query: { queryKey: getListCustomerPaymentsQueryKey(customerId) } });
   const recordPayment = useRecordPayment();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [dupWarning, setDupWarning] = useState<{ existingPayment: { id: number; amount: string; createdAt: string } } | null>(null);
+  const pendingPaymentRef = useRef<(() => Promise<void>) | null>(null);
 
   const payForm = useForm<PaymentForm>({
     resolver: zodResolver(paymentSchema),
     defaultValues: { amount: 0, notes: "" },
   });
 
-  async function onPayment(data: PaymentForm) {
+  async function doRecordPayment(data: PaymentForm) {
     await recordPayment.mutateAsync({ customerId, data: { amount: data.amount, notes: data.notes || null } }, {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getGetCustomerQueryKey(customerId) });
@@ -63,9 +65,22 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
         qc.invalidateQueries({ queryKey: getListCustomersQueryKey({}) });
         toast({ title: "Payment recorded" });
         setPaymentOpen(false);
+        setDupWarning(null);
         payForm.reset();
       },
     });
+  }
+
+  async function onPayment(data: PaymentForm) {
+    try {
+      const check = await fetch(`/api/customers/${customerId}/payments/check-duplicate?amount=${data.amount}`).then((r) => r.json()) as { duplicate: boolean; existingPayment?: { id: number; amount: string; createdAt: string } };
+      if (check.duplicate && check.existingPayment) {
+        pendingPaymentRef.current = () => doRecordPayment(data);
+        setDupWarning({ existingPayment: check.existingPayment });
+        return;
+      }
+    } catch { /* ignore */ }
+    await doRecordPayment(data);
   }
 
   return (

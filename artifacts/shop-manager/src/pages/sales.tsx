@@ -242,20 +242,7 @@ export default function Sales() {
     setRecording(false);
   }
 
-  async function onSubmit(data: SaleForm) {
-    const validItems = items.filter((i) => i.productName.trim());
-    if (!validItems.length) { toast({ title: "Add at least one item", variant: "destructive" }); return; }
-
-    let resolvedCustomerId: number | null = data.customerId && data.customerId !== "walk-in" ? parseInt(data.customerId) : null;
-    if (data.customerId === "new") {
-      if (!newCustomerName.trim()) { toast({ title: "Enter a customer name", variant: "destructive" }); return; }
-      const created = await createCustomer.mutateAsync({
-        data: { name: newCustomerName.trim(), phone: newCustomerPhone.trim() || null }
-      });
-      resolvedCustomerId = created.id;
-      qc.invalidateQueries({ queryKey: getListCustomersQueryKey({}) });
-    }
-
+  async function doCreateSale(data: SaleForm, resolvedCustomerId: number | null, validItems: SaleItem[]) {
     await createSale.mutateAsync({
       data: {
         customerId: resolvedCustomerId,
@@ -271,8 +258,38 @@ export default function Sales() {
         qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
         toast({ title: "Sale recorded" });
         setDialogOpen(false);
+        setDupWarning(null);
       },
     });
+  }
+
+  async function onSubmit(data: SaleForm) {
+    const validItems = items.filter((i) => i.productName.trim());
+    if (!validItems.length) { toast({ title: "Add at least one item", variant: "destructive" }); return; }
+
+    let resolvedCustomerId: number | null = data.customerId && data.customerId !== "walk-in" ? parseInt(data.customerId) : null;
+    if (data.customerId === "new") {
+      if (!newCustomerName.trim()) { toast({ title: "Enter a customer name", variant: "destructive" }); return; }
+      const created = await createCustomer.mutateAsync({
+        data: { name: newCustomerName.trim(), phone: newCustomerPhone.trim() || null }
+      });
+      resolvedCustomerId = created.id;
+      qc.invalidateQueries({ queryKey: getListCustomersQueryKey({}) });
+    }
+
+    const total = validItems.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+    const params = new URLSearchParams({ totalAmount: String(total) });
+    if (resolvedCustomerId) params.set("customerId", String(resolvedCustomerId));
+    try {
+      const check = await fetch(`/api/sales/check-duplicate?${params}`).then((r) => r.json()) as { duplicate: boolean; existingSale?: { id: number; createdAt: string; totalAmount: number } };
+      if (check.duplicate && check.existingSale) {
+        pendingSubmitRef.current = () => doCreateSale(data, resolvedCustomerId, validItems);
+        setDupWarning({ existingSale: check.existingSale });
+        return;
+      }
+    } catch { /* ignore network errors in duplicate check */ }
+
+    await doCreateSale(data, resolvedCustomerId, validItems);
   }
 
   async function onReturn(data: ReturnForm) {

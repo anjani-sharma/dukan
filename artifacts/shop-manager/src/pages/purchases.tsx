@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useListPurchases, useCreatePurchase, useDeletePurchase, useListProducts, getListPurchasesQueryKey, getListProductsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ShoppingBag, X, PlusCircle, Loader2 } from "lucide-react";
+import { Plus, Trash2, ShoppingBag, X, PlusCircle, Loader2, AlertTriangle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -69,10 +69,7 @@ export default function Purchases() {
     setItems(items.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   }
 
-  async function onSubmit(data: PurchaseForm) {
-    const validItems = items.filter((i) => i.productName.trim());
-    if (!validItems.length) { toast({ title: "Add at least one item", variant: "destructive" }); return; }
-
+  async function doCreatePurchase(data: PurchaseForm, validItems: PurchaseItem[]) {
     await createPurchase.mutateAsync({
       data: {
         vendorName: data.vendorName,
@@ -87,8 +84,28 @@ export default function Purchases() {
         qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
         toast({ title: "Purchase recorded", description: `Stock updated for ${validItems.length} item(s)` });
         setDialogOpen(false);
+        setDupWarning(null);
       },
     });
+  }
+
+  async function onSubmit(data: PurchaseForm) {
+    const validItems = items.filter((i) => i.productName.trim());
+    if (!validItems.length) { toast({ title: "Add at least one item", variant: "destructive" }); return; }
+
+    const total = validItems.reduce((s, i) => s + i.quantity * i.costPrice, 0);
+    try {
+      const params = new URLSearchParams({ vendorName: data.vendorName, totalAmount: String(total) });
+      if (data.purchaseDate) params.set("purchaseDate", data.purchaseDate);
+      const check = await fetch(`/api/purchases/check-duplicate?${params}`).then((r) => r.json()) as { duplicate: boolean; existingPurchase?: { id: number; vendorName: string; totalAmount: number; createdAt: string } };
+      if (check.duplicate && check.existingPurchase) {
+        pendingSubmitRef.current = () => doCreatePurchase(data, validItems);
+        setDupWarning({ existingPurchase: check.existingPurchase });
+        return;
+      }
+    } catch { /* ignore */ }
+
+    await doCreatePurchase(data, validItems);
   }
 
   async function handleDelete(id: number) {

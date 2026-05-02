@@ -121,7 +121,7 @@ export default function Products() {
     adjustForm.reset({ amount: 0 });
   }
 
-  async function onSubmit(data: ProductForm) {
+  async function doSaveProduct(data: ProductForm) {
     const payload = {
       name: data.name,
       description: data.description || null,
@@ -137,13 +137,27 @@ export default function Products() {
     };
     if (editingId) {
       await updateProduct.mutateAsync({ id: editingId, data: payload }, {
-        onSuccess: () => { qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) }); toast({ title: "Product updated" }); setDialogOpen(false); },
+        onSuccess: () => { qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) }); toast({ title: "Product updated" }); setDialogOpen(false); setDupWarning(null); },
       });
     } else {
       await createProduct.mutateAsync({ data: payload }, {
-        onSuccess: () => { qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) }); toast({ title: "Product added" }); setDialogOpen(false); },
+        onSuccess: () => { qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) }); toast({ title: "Product added" }); setDialogOpen(false); setDupWarning(null); },
       });
     }
+  }
+
+  async function onSubmit(data: ProductForm) {
+    if (!editingId) {
+      try {
+        const check = await fetch(`/api/products/check-duplicate?name=${encodeURIComponent(data.name)}`).then((r) => r.json()) as { duplicate: boolean; existingProduct?: { id: number; name: string } };
+        if (check.duplicate && check.existingProduct) {
+          pendingSubmitRef.current = () => doSaveProduct(data);
+          setDupWarning({ existingProduct: check.existingProduct });
+          return;
+        }
+      } catch { /* ignore */ }
+    }
+    await doSaveProduct(data);
   }
 
   async function onAdjust(data: AdjustForm) {
