@@ -165,8 +165,8 @@ export async function sendWeeklyReport() {
 }
 
 export function startScheduler() {
-  // Daily report at 9 PM IST = 15:30 UTC
-  cron.schedule("30 15 * * *", async () => {
+  // Daily report at 7 PM IST = 13:30 UTC
+  cron.schedule("30 13 * * *", async () => {
     try {
       await sendDailyReport();
     } catch (err) {
@@ -174,8 +174,8 @@ export function startScheduler() {
     }
   });
 
-  // Weekly report every Sunday at 9 PM IST = 15:30 UTC
-  cron.schedule("30 15 * * 0", async () => {
+  // Weekly report every Sunday at 8 AM IST = 02:30 UTC
+  cron.schedule("30 2 * * 0", async () => {
     try {
       await sendWeeklyReport();
     } catch (err) {
@@ -183,5 +183,5 @@ export function startScheduler() {
     }
   });
 
-  logger.info("Scheduler started — daily 9 PM IST, weekly Sunday 9 PM IST");
+  logger.info("Scheduler started — daily 7 PM IST, weekly Sunday 8 AM IST");
 }

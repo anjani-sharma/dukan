@@ -118,7 +118,7 @@ router.post("/telegram/webhook", async (req, res) => {
         .onConflictDoNothing();
       await sendTelegramMessage(
         chatId,
-        `✅ <b>Subscribed!</b>\n\nYou'll receive:\n• Daily report every evening at 9 PM IST\n• Weekly summary every Sunday at 9 PM IST\n\nSend /unsubscribe to stop.`,
+        `✅ <b>Subscribed!</b>\n\nYou'll receive:\n• Daily report every evening at 7 PM IST\n• Weekly summary every Sunday at 8 AM IST\n\nSend /unsubscribe to stop.`,
       );
       return;
     }
