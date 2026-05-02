@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useListSales, useCreateSale, useDeleteSale, useListProducts, useListCustomers, useTranscribeVoice, getListSalesQueryKey, getListProductsQueryKey, getListCustomersQueryKey } from "@workspace/api-client-react";
+import { useListSales, useCreateSale, useDeleteSale, useListProducts, useListCustomers, useCreateCustomer, useTranscribeVoice, getListSalesQueryKey, getListProductsQueryKey, getListCustomersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ShoppingCart, Mic, MicOff, Loader2, X, PlusCircle, AlertTriangle } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -42,8 +42,11 @@ export default function Sales() {
   const { data: products } = useListProducts({}, { query: { queryKey: getListProductsQueryKey({}) } });
   const { data: customers } = useListCustomers({}, { query: { queryKey: getListCustomersQueryKey({}) } });
   const createSale = useCreateSale();
+  const createCustomer = useCreateCustomer();
   const deleteSale = useDeleteSale();
   const transcribeVoice = useTranscribeVoice();
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
   const form = useForm<SaleForm>({
     resolver: zodResolver(saleSchema),
@@ -57,6 +60,8 @@ export default function Sales() {
   function openNew() {
     setItems([{ productName: "", quantity: 1, unitPrice: 0, productId: null }]);
     setTranscript("");
+    setNewCustomerName("");
+    setNewCustomerPhone("");
     form.reset({ customerId: "walk-in", paidAmount: 0, notes: "" });
     setDialogOpen(true);
   }
@@ -120,9 +125,21 @@ export default function Sales() {
   async function onSubmit(data: SaleForm) {
     const validItems = items.filter((i) => i.productName.trim());
     if (!validItems.length) { toast({ title: "Add at least one item", variant: "destructive" }); return; }
+
+    // Create new customer on-the-fly if requested
+    let resolvedCustomerId: number | null = data.customerId && data.customerId !== "walk-in" ? parseInt(data.customerId) : null;
+    if (data.customerId === "new") {
+      if (!newCustomerName.trim()) { toast({ title: "Enter a customer name", variant: "destructive" }); return; }
+      const created = await createCustomer.mutateAsync({
+        data: { name: newCustomerName.trim(), phone: newCustomerPhone.trim() || null, outstandingBalance: 0 }
+      });
+      resolvedCustomerId = created.id;
+      qc.invalidateQueries({ queryKey: getListCustomersQueryKey({}) });
+    }
+
     await createSale.mutateAsync({
       data: {
-        customerId: data.customerId && data.customerId !== "walk-in" ? parseInt(data.customerId) : null,
+        customerId: resolvedCustomerId,
         items: validItems.map((i) => ({ productName: i.productName, quantity: i.quantity, unitPrice: i.unitPrice, productId: i.productId })),
         paidAmount: data.paidAmount,
         notes: data.notes || null,
@@ -326,7 +343,7 @@ export default function Sales() {
               <FormField control={form.control} name="customerId" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Customer (optional)</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value} onValueChange={(v) => { field.onChange(v); if (v !== "new") { setNewCustomerName(""); setNewCustomerPhone(""); } }}>
                     <FormControl>
                       <SelectTrigger data-testid="select-customer">
                         <SelectValue placeholder="Walk-in customer" />
@@ -334,9 +351,27 @@ export default function Sales() {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="walk-in">Walk-in customer</SelectItem>
+                      <SelectItem value="new">＋ New customer…</SelectItem>
                       {customers?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {field.value === "new" && (
+                    <div className="mt-2 space-y-2 p-3 bg-muted/50 rounded-lg border border-card-border">
+                      <Input
+                        placeholder="Customer name *"
+                        value={newCustomerName}
+                        onChange={(e) => setNewCustomerName(e.target.value)}
+                        autoFocus
+                        data-testid="input-new-customer-name"
+                      />
+                      <Input
+                        placeholder="Phone number (optional)"
+                        value={newCustomerPhone}
+                        onChange={(e) => setNewCustomerPhone(e.target.value)}
+                        data-testid="input-new-customer-phone"
+                      />
+                    </div>
+                  )}
                 </FormItem>
               )} />
 
