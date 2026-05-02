@@ -32,17 +32,21 @@ router.post("/purchases", async (req, res) => {
     vendorName: string;
     purchaseDate?: string | null;
     notes?: string | null;
-    items: { productId?: number | null; productName: string; quantity: number; unitPrice: number }[];
+    items: { productId?: number | null; productName?: string; name?: string; quantity: number; unitPrice?: number }[];
     applyStock?: boolean;
   };
 
-  const items = (body.items ?? []).map((i) => ({
-    productId: i.productId ?? null,
-    productName: i.productName,
-    quantity: i.quantity,
-    unitPrice: i.unitPrice,
-    subtotal: i.quantity * i.unitPrice,
-  }));
+  const items = (body.items ?? []).map((i) => {
+    const productName = i.productName ?? i.name ?? "";
+    const unitPrice = i.unitPrice ?? 0;
+    return {
+      productId: i.productId ?? null,
+      productName,
+      quantity: i.quantity,
+      unitPrice,
+      subtotal: i.quantity * unitPrice,
+    };
+  });
   const totalAmount = items.reduce((s, i) => s + i.subtotal, 0);
 
   const [row] = await db.insert(purchasesTable).values({
@@ -58,7 +62,8 @@ router.post("/purchases", async (req, res) => {
     const allProducts = await db.select().from(productsTable);
     const byName = new Map(allProducts.map((p) => [p.name.toLowerCase(), p]));
     for (const item of items) {
-      const pid = item.productId ?? byName.get(item.productName.toLowerCase())?.id ?? null;
+      const nameKey = item.productName?.toLowerCase();
+      const pid = item.productId ?? (nameKey ? byName.get(nameKey)?.id : null) ?? null;
       if (pid) {
         await db.update(productsTable)
           .set({ stockQuantity: sql`${productsTable.stockQuantity} + ${item.quantity}` })
