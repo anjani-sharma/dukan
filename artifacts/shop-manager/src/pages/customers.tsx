@@ -70,15 +70,15 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-muted rounded-xl p-4 text-center">
                 <div className="text-xs text-muted-foreground mb-1">Total Credit</div>
-                <div className="text-lg font-bold text-foreground">Rs {customer.totalCredit.toFixed(0)}</div>
+                <div className="text-lg font-bold text-foreground">₹{customer.totalCredit.toFixed(0)}</div>
               </div>
               <div className="bg-muted rounded-xl p-4 text-center">
                 <div className="text-xs text-muted-foreground mb-1">Paid</div>
-                <div className="text-lg font-bold text-emerald-400">Rs {customer.totalPaid.toFixed(0)}</div>
+                <div className="text-lg font-bold text-emerald-400">₹{customer.totalPaid.toFixed(0)}</div>
               </div>
               <div className="bg-amber-400/10 border border-amber-400/20 rounded-xl p-4 text-center">
                 <div className="text-xs text-amber-400/70 mb-1">Outstanding</div>
-                <div className="text-lg font-bold text-amber-400">Rs {customer.outstandingBalance.toFixed(0)}</div>
+                <div className="text-lg font-bold text-amber-400">₹{customer.outstandingBalance.toFixed(0)}</div>
               </div>
             </div>
 
@@ -103,7 +103,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
                   {payments.map((p) => (
                     <div key={p.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3" data-testid={`payment-${p.id}`}>
                       <div>
-                        <div className="text-sm font-medium text-emerald-400">Rs {p.amount.toFixed(2)}</div>
+                        <div className="text-sm font-medium text-emerald-400">₹{p.amount.toFixed(2)}</div>
                         <div className="text-xs text-muted-foreground">{format(new Date(p.createdAt), "MMM d, yyyy")}</div>
                       </div>
                       {p.notes && <div className="text-xs text-muted-foreground">{p.notes}</div>}
@@ -121,11 +121,11 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
                   {customer.sales.map((s) => (
                     <div key={s.id} className="bg-muted/50 rounded-lg px-4 py-3" data-testid={`sale-history-${s.id}`}>
                       <div className="flex items-center justify-between mb-1">
-                        <div className="text-sm font-medium text-foreground">Rs {s.totalAmount.toFixed(2)}</div>
+                        <div className="text-sm font-medium text-foreground">₹{s.totalAmount.toFixed(2)}</div>
                         <div className="text-xs text-muted-foreground">{format(new Date(s.createdAt), "MMM d, yyyy")}</div>
                       </div>
                       {s.creditAmount > 0 && (
-                        <div className="text-xs text-amber-400">Outstanding: Rs {s.creditAmount.toFixed(2)}</div>
+                        <div className="text-xs text-amber-400">Outstanding: ₹{s.creditAmount.toFixed(2)}</div>
                       )}
                     </div>
                   ))}
@@ -143,7 +143,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             <form onSubmit={payForm.handleSubmit(onPayment)} className="space-y-4">
               <FormField control={payForm.control} name="amount" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount (Rs)</FormLabel>
+                  <FormLabel>Amount (₹)</FormLabel>
                   <FormControl><Input type="number" step="0.01" {...field} data-testid="input-payment-amount" /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -233,7 +233,7 @@ export default function Customers() {
               <div className="flex items-center gap-4">
                 {c.outstandingBalance > 0 ? (
                   <div className="text-right">
-                    <div className="text-sm font-bold text-amber-400">Rs {c.outstandingBalance.toFixed(2)}</div>
+                    <div className="text-sm font-bold text-amber-400">₹{c.outstandingBalance.toFixed(2)}</div>
                     <div className="text-xs text-muted-foreground">outstanding</div>
                   </div>
                 ) : (

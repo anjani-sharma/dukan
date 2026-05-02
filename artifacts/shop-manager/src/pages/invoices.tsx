@@ -141,7 +141,7 @@ export default function Invoices() {
                   </td>
                   <td className="px-4 py-3 text-foreground">{inv.vendorOrCustomer ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{inv.invoiceDate ?? format(new Date(inv.createdAt), "MMM d, yyyy")}</td>
-                  <td className="px-4 py-3 text-right font-medium text-foreground">{inv.amount != null ? `Rs ${inv.amount.toFixed(2)}` : "—"}</td>
+                  <td className="px-4 py-3 text-right font-medium text-foreground">{inv.amount != null ? `₹${inv.amount.toFixed(2)}` : "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs truncate max-w-xs">{inv.notes ?? "—"}</td>
                   <td className="px-4 py-3">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(inv.id)} data-testid={`button-delete-invoice-${inv.id}`}>
@@ -204,7 +204,7 @@ export default function Invoices() {
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="amount" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount (Rs)</FormLabel>
+                    <FormLabel>Amount (₹)</FormLabel>
                     <FormControl><Input type="number" step="0.01" {...field} data-testid="input-invoice-amount" /></FormControl>
                     <FormMessage />
                   </FormItem>

@@ -26,7 +26,7 @@ export default function Dashboard() {
   const { data: chart } = useGetSalesChart({ days: 30 }, { query: { queryKey: getGetSalesChartQueryKey({ days: 30 }) } });
   const { data: topCustomers } = useGetTopCustomers({ query: { queryKey: getGetTopCustomersQueryKey() } });
 
-  const fmt = (n?: number) => `Rs ${(n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (n?: number) => `₹${(n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="p-6 space-y-6">
@@ -70,7 +70,7 @@ export default function Dashboard() {
                 <Tooltip
                   contentStyle={{ background: "hsl(222 44% 14%)", border: "1px solid hsl(217 32% 22%)", borderRadius: 8, fontSize: 12 }}
                   labelFormatter={(l) => format(new Date(l + "T00:00"), "MMM d, yyyy")}
-                  formatter={(v: number) => [`Rs ${v.toFixed(2)}`, "Sales"]}
+                  formatter={(v: number) => [`₹${v.toFixed(2)}`, "Sales"]}
                 />
                 <Area type="monotone" dataKey="total" stroke="hsl(38 92% 55%)" strokeWidth={2} fill="url(#salesGrad)" />
               </AreaChart>
@@ -91,7 +91,7 @@ export default function Dashboard() {
                     <div className="text-sm font-medium text-foreground truncate">{c.name}</div>
                     {c.phone && <div className="text-xs text-muted-foreground">{c.phone}</div>}
                   </div>
-                  <div className="text-sm font-bold text-amber-400 ml-4 flex-shrink-0">Rs {c.outstandingBalance.toFixed(0)}</div>
+                  <div className="text-sm font-bold text-amber-400 ml-4 flex-shrink-0">₹{c.outstandingBalance.toFixed(0)}</div>
                 </div>
               ))}
             </div>
@@ -122,7 +122,7 @@ export default function Dashboard() {
                   <div className="text-xs text-muted-foreground">{format(new Date(item.createdAt), "MMM d, h:mm a")}</div>
                 </div>
                 {item.amount != null && (
-                  <div className="text-sm font-semibold text-foreground flex-shrink-0">Rs {item.amount.toFixed(2)}</div>
+                  <div className="text-sm font-semibold text-foreground flex-shrink-0">₹{item.amount.toFixed(2)}</div>
                 )}
               </div>
             ))}
