@@ -7,8 +7,14 @@ import { z } from "zod";
 const router = Router();
 
 function getAnthropic() {
+  // Prefer Replit AI integration (no user key needed), fall back to user's own key
+  const integrationKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+  const integrationUrl = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+  if (integrationKey && integrationUrl) {
+    return new Anthropic({ apiKey: integrationKey, baseURL: integrationUrl });
+  }
   const key = process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("No Anthropic API key set");
+  if (!key) throw new Error("No Anthropic API key configured");
   return new Anthropic({ apiKey: key });
 }
 
@@ -42,7 +48,7 @@ router.post("/ai/transcribe-voice", async (req, res) => {
 
     const anthropic = getAnthropic();
     const parseResponse = await anthropic.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5",
       max_tokens: 512,
       system: `You are an assistant for an Indian electrical goods shop. Extract sale items from voice transcripts (may be Hindi, English or mixed).
 Common electrical item names: switch, socket, plate, MCB, wire, cable, holder, fan, LED, bulb, tube, conduit, PVC, RCCB, DB box, angle holder, battery holder, converter.
@@ -78,7 +84,7 @@ router.post("/ai/parse-invoice-image", async (req, res) => {
       : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-6",
       max_tokens: 2000,
       system: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
 These are often handwritten on preprinted forms with columns: QNTY | PARTICULAR | RATE | AMOUNT (or similar).
@@ -145,7 +151,7 @@ router.post("/ai/parse-payment-receipt", async (req, res) => {
       : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-6",
       max_tokens: 800,
       system: `You are an expert at reading Indian payment receipts and bank documents. Common types:
 
