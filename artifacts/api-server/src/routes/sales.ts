@@ -58,12 +58,16 @@ router.post("/sales", async (req, res) => {
     source: body.source ?? "web",
   }).returning();
 
-  // Deduct stock for each item that has a productId
+  // Deduct stock — first by productId, then by name-matching for items without ID
+  const allProducts = await db.select().from(productsTable);
+  const productsByName = new Map(allProducts.map((p) => [p.name.toLowerCase(), p]));
+
   for (const item of items) {
-    if (item.productId) {
+    const pid = item.productId ?? productsByName.get(item.productName.toLowerCase())?.id ?? null;
+    if (pid) {
       await db.update(productsTable)
-        .set({ stockQuantity: sql`${productsTable.stockQuantity} - ${item.quantity}` })
-        .where(eq(productsTable.id, item.productId));
+        .set({ stockQuantity: sql`GREATEST(0, ${productsTable.stockQuantity} - ${item.quantity})` })
+        .where(eq(productsTable.id, pid));
     }
   }
 

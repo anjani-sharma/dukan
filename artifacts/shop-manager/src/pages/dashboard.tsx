@@ -1,7 +1,8 @@
-import { useGetDashboardSummary, useGetRecentActivity, useGetSalesChart, useGetTopCustomers, getGetDashboardSummaryQueryKey, getGetRecentActivityQueryKey, getGetSalesChartQueryKey, getGetTopCustomersQueryKey } from "@workspace/api-client-react";
+import { useGetDashboardSummary, useGetRecentActivity, useGetSalesChart, useGetTopCustomers, useListProducts, getGetDashboardSummaryQueryKey, getGetRecentActivityQueryKey, getGetSalesChartQueryKey, getGetTopCustomersQueryKey, getListProductsQueryKey } from "@workspace/api-client-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, Users, Package, AlertTriangle, ShoppingCart, CreditCard, Clock, ArrowUpRight } from "lucide-react";
+import { TrendingUp, Users, Package, AlertTriangle, ShoppingCart, CreditCard, Clock, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 function StatCard({ label, value, sub, icon: Icon, accent }: { label: string; value: string; sub?: string; icon: typeof TrendingUp; accent?: string }) {
   return (
@@ -25,8 +26,10 @@ export default function Dashboard() {
   const { data: activity, isLoading: loadingActivity } = useGetRecentActivity({ limit: 10 }, { query: { queryKey: getGetRecentActivityQueryKey({ limit: 10 }) } });
   const { data: chart } = useGetSalesChart({ days: 30 }, { query: { queryKey: getGetSalesChartQueryKey({ days: 30 }) } });
   const { data: topCustomers } = useGetTopCustomers({ query: { queryKey: getGetTopCustomersQueryKey() } });
+  const { data: products } = useListProducts({}, { query: { queryKey: getListProductsQueryKey({}) } });
 
   const fmt = (n?: number) => `₹${(n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const lowStockItems = (products ?? []).filter((p) => p.stockQuantity <= p.lowStockThreshold);
 
   return (
     <div className="p-6 space-y-6">
@@ -100,6 +103,44 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Low stock alert panel */}
+      {lowStockItems.length > 0 && (
+        <div className="bg-card border border-red-500/30 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <h2 className="text-sm font-semibold text-red-400">Low Stock Alert</h2>
+            <span className="text-xs text-muted-foreground ml-auto">{lowStockItems.length} product{lowStockItems.length !== 1 ? "s" : ""} need restocking</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {lowStockItems.map((p) => {
+              const pct = p.lowStockThreshold > 0 ? Math.min(100, (p.stockQuantity / p.lowStockThreshold) * 100) : 0;
+              return (
+                <div key={p.id} className="bg-red-500/5 border border-red-500/20 rounded-lg px-4 py-3" data-testid={`low-stock-${p.id}`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{p.name}</div>
+                      {p.category && <div className="text-xs text-muted-foreground">{p.category}</div>}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className={cn("text-sm font-bold", p.stockQuantity === 0 ? "text-red-400" : "text-amber-400")}>
+                        {p.stockQuantity === 0 ? "OUT" : `${p.stockQuantity} ${p.unit}`}
+                      </div>
+                      <div className="text-xs text-muted-foreground">min {p.lowStockThreshold}</div>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full", p.stockQuantity === 0 ? "bg-red-500" : "bg-amber-400")}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Recent activity */}
       <div className="bg-card border border-card-border rounded-xl p-5">

@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useListSales, useCreateSale, useDeleteSale, useListProducts, useListCustomers, useTranscribeVoice, getListSalesQueryKey, getListProductsQueryKey, getListCustomersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ShoppingCart, Mic, MicOff, Loader2, X, PlusCircle } from "lucide-react";
+import { Plus, Trash2, ShoppingCart, Mic, MicOff, Loader2, X, PlusCircle, AlertTriangle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,11 +25,12 @@ interface SaleItem {
   productName: string;
   quantity: number;
   unitPrice: number;
+  productId: number | null;
 }
 
 export default function Sales() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [items, setItems] = useState<SaleItem[]>([{ productName: "", quantity: 1, unitPrice: 0 }]);
+  const [items, setItems] = useState<SaleItem[]>([{ productName: "", quantity: 1, unitPrice: 0, productId: null }]);
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const mediaRef = useRef<MediaRecorder | null>(null);
@@ -54,15 +55,26 @@ export default function Sales() {
   const creditAmount = Math.max(0, totalAmount - paidAmount);
 
   function openNew() {
-    setItems([{ productName: "", quantity: 1, unitPrice: 0 }]);
+    setItems([{ productName: "", quantity: 1, unitPrice: 0, productId: null }]);
     setTranscript("");
     form.reset({ customerId: "walk-in", paidAmount: 0, notes: "" });
     setDialogOpen(true);
   }
 
-  function addItem() { setItems([...items, { productName: "", quantity: 1, unitPrice: 0 }]); }
+  function addItem() { setItems([...items, { productName: "", quantity: 1, unitPrice: 0, productId: null }]); }
   function removeItem(i: number) { setItems(items.filter((_, idx) => idx !== i)); }
-  function updateItem(i: number, field: keyof SaleItem, value: string | number) {
+
+  function updateItemName(i: number, name: string) {
+    const matched = products?.find((p) => p.name.toLowerCase() === name.toLowerCase());
+    setItems(items.map((item, idx) => idx === i ? {
+      ...item,
+      productName: name,
+      productId: matched?.id ?? null,
+      unitPrice: matched ? matched.sellingPrice : item.unitPrice,
+    } : item));
+  }
+
+  function updateItemField(i: number, field: "quantity" | "unitPrice", value: number) {
     setItems(items.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   }
 
@@ -79,11 +91,15 @@ export default function Sales() {
         const result = await transcribeVoice.mutateAsync({ data: { audioBase64: b64, mimeType: "audio/webm" } });
         setTranscript(result.transcript);
         if (result.parsedSale?.items?.length) {
-          setItems(result.parsedSale.items.map((i: { productName: string; quantity: number; unitPrice: number }) => ({
-            productName: i.productName,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-          })));
+          setItems(result.parsedSale.items.map((i: { productName: string; quantity: number; unitPrice: number }) => {
+            const matched = products?.find((p) => p.name.toLowerCase() === i.productName.toLowerCase());
+            return {
+              productName: i.productName,
+              quantity: i.quantity,
+              unitPrice: matched ? matched.sellingPrice : i.unitPrice,
+              productId: matched?.id ?? null,
+            };
+          }));
           toast({ title: "Voice processed", description: `Found ${result.parsedSale.items.length} item(s)` });
         }
       };
@@ -107,7 +123,7 @@ export default function Sales() {
     await createSale.mutateAsync({
       data: {
         customerId: data.customerId && data.customerId !== "walk-in" ? parseInt(data.customerId) : null,
-        items: validItems.map((i) => ({ productName: i.productName, quantity: i.quantity, unitPrice: i.unitPrice, productId: null })),
+        items: validItems.map((i) => ({ productName: i.productName, quantity: i.quantity, unitPrice: i.unitPrice, productId: i.productId })),
         paidAmount: data.paidAmount,
         notes: data.notes || null,
         source: "web",
@@ -115,6 +131,7 @@ export default function Sales() {
     }, {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListSalesQueryKey({}) });
+        qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
         toast({ title: "Sale recorded" });
         setDialogOpen(false);
       },
@@ -127,6 +144,8 @@ export default function Sales() {
     });
   }
 
+  const lowStockItems = (products ?? []).filter((p) => p.stockQuantity <= p.lowStockThreshold);
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -138,6 +157,19 @@ export default function Sales() {
           <Plus className="w-4 h-4 mr-1.5" /> New Sale
         </Button>
       </div>
+
+      {/* Low stock warning banner */}
+      {lowStockItems.length > 0 && (
+        <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+          <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+          <div className="text-sm">
+            <span className="font-semibold text-red-400">Low stock: </span>
+            <span className="text-muted-foreground">
+              {lowStockItems.map((p) => `${p.name} (${p.stockQuantity} ${p.unit} left)`).join(" · ")}
+            </span>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-20 bg-card border border-card-border rounded-xl animate-pulse" />)}</div>
@@ -219,32 +251,47 @@ export default function Sales() {
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">Items</label>
                 <div className="space-y-2">
-                  {items.map((item, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_90px_32px] gap-2 items-center" data-testid={`sale-item-${i}`}>
-                      <Input
-                        placeholder="Product name"
-                        value={item.productName}
-                        onChange={(e) => updateItem(i, "productName", e.target.value)}
-                        list="product-suggestions"
-                        data-testid={`input-item-name-${i}`}
-                      />
-                      <Input
-                        type="number" min={0.01} step="0.01" placeholder="Qty"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(i, "quantity", parseFloat(e.target.value) || 0)}
-                        data-testid={`input-item-qty-${i}`}
-                      />
-                      <Input
-                        type="number" min={0} step="0.01" placeholder="Price"
-                        value={item.unitPrice}
-                        onChange={(e) => updateItem(i, "unitPrice", parseFloat(e.target.value) || 0)}
-                        data-testid={`input-item-price-${i}`}
-                      />
-                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => removeItem(i)}>
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  ))}
+                  {items.map((item, i) => {
+                    const matched = products?.find((p) => p.id === item.productId);
+                    const isLow = matched && matched.stockQuantity <= matched.lowStockThreshold;
+                    return (
+                      <div key={i} className="space-y-1" data-testid={`sale-item-${i}`}>
+                        <div className="grid grid-cols-[1fr_80px_90px_32px] gap-2 items-center">
+                          <Input
+                            placeholder="Product name"
+                            value={item.productName}
+                            onChange={(e) => updateItemName(i, e.target.value)}
+                            list="product-suggestions"
+                            data-testid={`input-item-name-${i}`}
+                          />
+                          <Input
+                            type="number" min={0.01} step="0.01" placeholder="Qty"
+                            value={item.quantity}
+                            onChange={(e) => updateItemField(i, "quantity", parseFloat(e.target.value) || 0)}
+                            data-testid={`input-item-qty-${i}`}
+                          />
+                          <Input
+                            type="number" min={0} step="0.01" placeholder="Price"
+                            value={item.unitPrice}
+                            onChange={(e) => updateItemField(i, "unitPrice", parseFloat(e.target.value) || 0)}
+                            data-testid={`input-item-price-${i}`}
+                          />
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => removeItem(i)}>
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                        {matched && (
+                          <div className="flex items-center gap-2 px-1">
+                            <span className={cn("text-xs", isLow ? "text-red-400" : "text-emerald-400")}>
+                              {isLow && <AlertTriangle className="w-3 h-3 inline mr-1" />}
+                              Stock: {matched.stockQuantity} {matched.unit}
+                              {item.quantity > 0 && ` → ${Math.max(0, matched.stockQuantity - item.quantity)} after sale`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <datalist id="product-suggestions">
                   {products?.map((p) => <option key={p.id} value={p.name} />)}
