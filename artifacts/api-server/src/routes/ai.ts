@@ -1,20 +1,29 @@
 import { Router } from "express";
 import { TranscribeVoiceBody, ParseInvoiceImageBody } from "@workspace/api-zod";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 const router = Router();
 
+function getAnthropic() {
+  const key = process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("No Anthropic API key set");
+  return new Anthropic({ apiKey: key });
+}
+
 function getOpenAI() {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("OPENAI_API_KEY not set");
+  if (key.startsWith("sk-ant-")) throw new Error("OPENAI_API_KEY is an Anthropic key — Whisper requires a real OpenAI key");
+  return new OpenAI({ apiKey: key });
 }
 
 router.post("/ai/transcribe-voice", async (req, res) => {
   const body = TranscribeVoiceBody.parse(req.body);
-  const openai = getOpenAI();
 
   try {
+    const openai = getOpenAI();
     const audioBuffer = Buffer.from(body.audioBase64, "base64");
     const mimeType = body.mimeType ?? "audio/ogg";
     const ext = mimeType.split("/")[1]?.split(";")[0] ?? "ogg";
@@ -26,55 +35,52 @@ router.post("/ai/transcribe-voice", async (req, res) => {
     const transcription = await openai.audio.transcriptions.create({
       file: stream as Parameters<typeof openai.audio.transcriptions.create>[0]["file"],
       model: "whisper-1",
-      language: "hi", // support Hindi + English mix
+      language: "hi",
     });
 
     const transcript = transcription.text;
 
-    const parseResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are an assistant for an Indian electrical goods shop. Extract sale items from voice transcripts (may be Hindi, English or mixed).
+    const anthropic = getAnthropic();
+    const parseResponse = await anthropic.messages.create({
+      model: "claude-3-5-haiku-20241022",
+      max_tokens: 512,
+      system: `You are an assistant for an Indian electrical goods shop. Extract sale items from voice transcripts (may be Hindi, English or mixed).
 Common electrical item names: switch, socket, plate, MCB, wire, cable, holder, fan, LED, bulb, tube, conduit, PVC, RCCB, DB box, angle holder, battery holder, converter.
 Return JSON: {"items": [{"productName": string, "quantity": number, "unitPrice": number}], "customerName": string|null, "notes": string|null}
 If price not mentioned use 0. Return valid JSON only, no markdown.`,
-        },
-        { role: "user", content: transcript },
-      ],
-      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: transcript }],
     });
 
     let parsedSale = null;
     try {
-      const content = parseResponse.choices[0]?.message?.content ?? "{}";
+      const content = parseResponse.content[0]?.type === "text" ? parseResponse.content[0].text : "{}";
       parsedSale = JSON.parse(content);
     } catch {
-      req.log.warn("Failed to parse GPT response as JSON");
+      req.log.warn("Failed to parse Claude response as JSON");
     }
 
     return res.json({ transcript, parsedSale });
   } catch (err) {
     req.log.error({ err }, "Voice transcription failed");
-    return res.status(500).json({ error: "Transcription failed" });
+    const msg = err instanceof Error ? err.message : "Transcription failed";
+    return res.status(500).json({ error: msg });
   }
 });
 
 router.post("/ai/parse-invoice-image", async (req, res) => {
   const body = ParseInvoiceImageBody.parse(req.body);
-  const openai = getOpenAI();
+  const anthropic = getAnthropic();
 
   try {
-    const mimeType = body.mimeType ?? "image/jpeg";
-    const dataUrl = `data:${mimeType};base64,${body.imageBase64}`;
+    const mimeType = (body.mimeType ?? "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    const mediaType = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)
+      ? mimeType
+      : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
+    const response = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 2000,
+      system: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
 These are often handwritten on preprinted forms with columns: QNTY | PARTICULAR | RATE | AMOUNT (or similar).
 
 Key extraction rules:
@@ -100,20 +106,21 @@ Return JSON only (no markdown):
   "items": [{"name": string, "quantity": number, "unit": string, "unitPrice": number, "subtotal": number}]|null,
   "rawText": string|null
 }`,
-        },
+      messages: [
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: body.imageBase64 },
+            },
             { type: "text", text: "Extract all invoice data from this image. Pay careful attention to the handwritten text in the table rows." },
           ],
         },
       ],
-      response_format: { type: "json_object" },
-      max_tokens: 2000,
     });
 
-    const content = response.choices[0]?.message?.content ?? "{}";
+    const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
     const data = JSON.parse(content);
     return res.json(data);
   } catch (err) {
@@ -122,7 +129,6 @@ Return JSON only (no markdown):
   }
 });
 
-// Parse a payment receipt (bank deposit slip, GPay/UPI screenshot)
 const ParseReceiptBody = z.object({
   imageBase64: z.string(),
   mimeType: z.string().optional(),
@@ -130,18 +136,18 @@ const ParseReceiptBody = z.object({
 
 router.post("/ai/parse-payment-receipt", async (req, res) => {
   const body = ParseReceiptBody.parse(req.body);
-  const openai = getOpenAI();
+  const anthropic = getAnthropic();
 
   try {
     const mimeType = body.mimeType ?? "image/jpeg";
-    const dataUrl = `data:${mimeType};base64,${body.imageBase64}`;
+    const mediaType = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)
+      ? mimeType
+      : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert at reading Indian payment receipts and bank documents. Common types:
+    const response = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 800,
+      system: `You are an expert at reading Indian payment receipts and bank documents. Common types:
 
 1. BANK DEPOSIT SLIPS (e.g. Bank of Baroda, SBI, HDFC, ICICI, PNB):
    - Look for: bank name, account holder name, account number, date, total amount deposited, slip/form number.
@@ -172,20 +178,21 @@ Return JSON only (no markdown):
   "merchantOrVendor": string|null,
   "notes": string|null
 }`,
-        },
+      messages: [
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: body.imageBase64 },
+            },
             { type: "text", text: "Extract all payment details from this receipt/slip." },
           ],
         },
       ],
-      response_format: { type: "json_object" },
-      max_tokens: 800,
     });
 
-    const content = response.choices[0]?.message?.content ?? "{}";
+    const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
     const data = JSON.parse(content);
     return res.json(data);
   } catch (err) {
