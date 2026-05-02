@@ -1,40 +1,24 @@
 import { Router } from "express";
 import { TranscribeVoiceBody, ParseInvoiceImageBody } from "@workspace/api-zod";
 import OpenAI from "openai";
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 const router = Router();
 
 function extractJson(text: string): string {
-  // Strip markdown code fences (```json ... ``` or ``` ... ```)
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (fenced) return fenced[1].trim();
   return text.trim();
 }
 
-function getAnthropic() {
-  // Prefer Replit AI integration (no user key needed), fall back to user's own key
-  const integrationKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-  const integrationUrl = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-  if (integrationKey && integrationUrl) {
-    return new Anthropic({ apiKey: integrationKey, baseURL: integrationUrl });
-  }
-  const key = process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("No Anthropic API key configured");
-  return new Anthropic({ apiKey: key });
-}
-
 function getOpenAI() {
-  // Prefer Replit AI integration (no user key needed)
   const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   const integrationUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   if (integrationKey && integrationUrl) {
     return new OpenAI({ apiKey: integrationKey, baseURL: integrationUrl });
   }
   const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("No OpenAI API key configured");
-  if (key.startsWith("sk-ant-")) throw new Error("OPENAI_API_KEY is an Anthropic key — set a real OpenAI key");
+  if (!key) throw new Error("No OpenAI API key configured. Set OPENAI_API_KEY in your secrets.");
   return new OpenAI({ apiKey: key });
 }
 
@@ -59,23 +43,27 @@ router.post("/ai/transcribe-voice", async (req, res) => {
 
     const transcript = transcription.text;
 
-    const anthropic = getAnthropic();
-    const parseResponse = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
+    const parseResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       max_tokens: 512,
-      system: `You are an assistant for an Indian electrical goods shop. Extract sale items from voice transcripts (may be Hindi, English or mixed).
+      messages: [
+        {
+          role: "system",
+          content: `You are an assistant for an Indian electrical goods shop. Extract sale items from voice transcripts (may be Hindi, English or mixed).
 Common electrical item names: switch, socket, plate, MCB, wire, cable, holder, fan, LED, bulb, tube, conduit, PVC, RCCB, DB box, angle holder, battery holder, converter.
 Return JSON: {"items": [{"productName": string, "quantity": number, "unitPrice": number}], "customerName": string|null, "notes": string|null}
 If price not mentioned use 0. Return valid JSON only, no markdown.`,
-      messages: [{ role: "user", content: transcript }],
+        },
+        { role: "user", content: transcript },
+      ],
     });
 
     let parsedSale = null;
     try {
-      const content = parseResponse.content[0]?.type === "text" ? parseResponse.content[0].text : "{}";
+      const content = parseResponse.choices[0]?.message?.content ?? "{}";
       parsedSale = JSON.parse(extractJson(content));
     } catch {
-      req.log.warn("Failed to parse Claude response as JSON");
+      req.log.warn("Failed to parse GPT response as JSON");
     }
 
     return res.json({ transcript, parsedSale });
@@ -88,18 +76,23 @@ If price not mentioned use 0. Return valid JSON only, no markdown.`,
 
 router.post("/ai/parse-invoice-image", async (req, res) => {
   const body = ParseInvoiceImageBody.parse(req.body);
-  const anthropic = getAnthropic();
 
   try {
-    const mimeType = (body.mimeType ?? "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-    const mediaType = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)
-      ? mimeType
-      : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    const mimeType = body.mimeType ?? "image/jpeg";
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    if (mimeType === "application/pdf") {
+      return res.status(422).json({ error: "PDF scanning is not yet supported. Please upload a photo of the invoice instead." });
+    }
+
+    const openai = getOpenAI();
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 2000,
-      system: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
 These are often handwritten on preprinted forms with columns: QNTY | PARTICULAR | RATE | AMOUNT (or similar).
 
 Key extraction rules:
@@ -125,13 +118,13 @@ Return JSON only (no markdown):
   "items": [{"name": string, "quantity": number, "unit": string, "unitPrice": number, "subtotal": number}]|null,
   "rawText": string|null
 }`,
-      messages: [
+        },
         {
           role: "user",
           content: [
             {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: body.imageBase64 },
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${body.imageBase64}`, detail: "high" },
             },
             { type: "text", text: "Extract all invoice data from this image. Pay careful attention to the handwritten text in the table rows." },
           ],
@@ -139,12 +132,13 @@ Return JSON only (no markdown):
       ],
     });
 
-    const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
+    const content = response.choices[0]?.message?.content ?? "{}";
     const data = JSON.parse(extractJson(content));
     return res.json(data);
   } catch (err) {
     req.log.error({ err }, "Invoice image parsing failed");
-    return res.status(500).json({ error: "Image parsing failed" });
+    const msg = err instanceof Error ? err.message : "Image parsing failed";
+    return res.status(500).json({ error: msg });
   }
 });
 
@@ -155,18 +149,23 @@ const ParseReceiptBody = z.object({
 
 router.post("/ai/parse-payment-receipt", async (req, res) => {
   const body = ParseReceiptBody.parse(req.body);
-  const anthropic = getAnthropic();
 
   try {
     const mimeType = body.mimeType ?? "image/jpeg";
-    const mediaType = (["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)
-      ? mimeType
-      : "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    if (mimeType === "application/pdf") {
+      return res.status(422).json({ error: "PDF scanning is not yet supported. Please upload a photo of the receipt instead." });
+    }
+
+    const openai = getOpenAI();
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 800,
-      system: `You are an expert at reading Indian payment receipts and bank documents. Common types:
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert at reading Indian payment receipts and bank documents. Common types:
 
 1. BANK DEPOSIT SLIPS (e.g. Bank of Baroda, SBI, HDFC, ICICI, PNB):
    - Look for: bank name, account holder name, account number, date, total amount deposited, slip/form number.
@@ -197,13 +196,13 @@ Return JSON only (no markdown):
   "merchantOrVendor": string|null,
   "notes": string|null
 }`,
-      messages: [
+        },
         {
           role: "user",
           content: [
             {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: body.imageBase64 },
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${body.imageBase64}`, detail: "high" },
             },
             { type: "text", text: "Extract all payment details from this receipt/slip." },
           ],
@@ -211,7 +210,7 @@ Return JSON only (no markdown):
       ],
     });
 
-    const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
+    const content = response.choices[0]?.message?.content ?? "{}";
     const data = JSON.parse(extractJson(content));
     return res.json(data);
   } catch (err) {
