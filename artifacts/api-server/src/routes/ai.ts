@@ -26,9 +26,15 @@ function getAnthropic() {
 }
 
 function getOpenAI() {
+  // Prefer Replit AI integration (no user key needed)
+  const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const integrationUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  if (integrationKey && integrationUrl) {
+    return new OpenAI({ apiKey: integrationKey, baseURL: integrationUrl });
+  }
   const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY not set");
-  if (key.startsWith("sk-ant-")) throw new Error("OPENAI_API_KEY is an Anthropic key — Whisper requires a real OpenAI key");
+  if (!key) throw new Error("No OpenAI API key configured");
+  if (key.startsWith("sk-ant-")) throw new Error("OPENAI_API_KEY is an Anthropic key — set a real OpenAI key");
   return new OpenAI({ apiKey: key });
 }
 
@@ -47,7 +53,7 @@ router.post("/ai/transcribe-voice", async (req, res) => {
 
     const transcription = await openai.audio.transcriptions.create({
       file: stream as Parameters<typeof openai.audio.transcriptions.create>[0]["file"],
-      model: "whisper-1",
+      model: "gpt-4o-mini-transcribe",
       language: "hi",
     });
 
