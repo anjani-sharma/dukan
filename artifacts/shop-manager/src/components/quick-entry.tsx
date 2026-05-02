@@ -153,10 +153,16 @@ export function QuickEntry() {
     reader.onload = async () => {
       const dataUrl = reader.result as string;
       setInvoicePreview(dataUrl);
-      const b64 = dataUrl.split(",")[1];
-      const result = await parseImage.mutateAsync({ data: { imageBase64: b64, mimeType: file.type || "image/jpeg" } });
-      setInvoiceData({ vendorOrCustomer: result.vendorOrCustomer ?? undefined, amount: result.amount ?? undefined, invoiceDate: result.invoiceDate ?? undefined });
-      toast({ title: "Invoice scanned", description: result.vendorOrCustomer ?? "Details extracted" });
+      // Always set invoiceData so the Save button appears even if AI fails
+      setInvoiceData({});
+      try {
+        const b64 = dataUrl.split(",")[1];
+        const result = await parseImage.mutateAsync({ data: { imageBase64: b64, mimeType: file.type || "image/jpeg" } });
+        setInvoiceData({ vendorOrCustomer: result.vendorOrCustomer ?? undefined, amount: result.amount ?? undefined, invoiceDate: result.invoiceDate ?? undefined });
+        toast({ title: "Invoice scanned", description: result.vendorOrCustomer ?? "Details extracted" });
+      } catch {
+        toast({ title: "AI scan failed", description: "You can still save the invoice manually", variant: "destructive" });
+      }
     };
     reader.readAsDataURL(file);
   }
