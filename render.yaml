@@ -20,3 +20,5 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: TELEGRAM_ALLOWED_CHAT_IDS
+        sync: false

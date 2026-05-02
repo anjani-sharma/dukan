@@ -93,6 +93,20 @@ router.post("/telegram/webhook", async (req, res) => {
     const voice = message.voice;
     const photo = message.photo;
 
+    // Allowlist check — if TELEGRAM_ALLOWED_CHAT_IDS is set, only those chats can use the bot
+    const allowedIds = process.env.TELEGRAM_ALLOWED_CHAT_IDS;
+    if (allowedIds) {
+      const ids = allowedIds.split(",").map((id) => id.trim());
+      if (!ids.includes(String(chatId))) {
+        return; // silently ignore unauthorised users
+      }
+    }
+
+    if (text === "/myid") {
+      await sendTelegramMessage(chatId, `Your chat ID is: <code>${chatId}</code>\n\nShare this with your admin to get whitelisted.`);
+      return;
+    }
+
     if (text === "/start" || text === "/help") {
       await sendTelegramMessage(
         chatId,
