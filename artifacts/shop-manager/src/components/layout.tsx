@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, ShoppingCart, Users, Package, FileText, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QuickEntry } from "./quick-entry";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -14,6 +15,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
 
   return (
+    <>
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Sidebar */}
       <aside className="w-56 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -62,5 +64,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
+    <QuickEntry />
+    </>
   );
 }
