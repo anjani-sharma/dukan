@@ -10,6 +10,23 @@ router.get("/purchases", async (_req, res) => {
   return res.json(rows.map(toPurchase));
 });
 
+// Duplicate check: same vendor + same total + same date
+router.get("/purchases/check-duplicate", async (req, res) => {
+  const vendorName = (req.query.vendorName as string ?? "").trim().toLowerCase();
+  const totalAmount = req.query.totalAmount ? parseFloat(req.query.totalAmount as string) : null;
+  const purchaseDate = req.query.purchaseDate as string | undefined;
+  if (!vendorName || totalAmount == null) return res.json({ duplicate: false });
+  const rows = await db.select().from(purchasesTable);
+  const match = rows.find((r) => {
+    const sameVendor = r.vendorName.trim().toLowerCase() === vendorName;
+    const sameTotal = Math.abs(parseFloat(r.totalAmount as string) - totalAmount) < 0.01;
+    const sameDate = purchaseDate ? r.purchaseDate === purchaseDate : true;
+    return sameVendor && sameTotal && sameDate;
+  });
+  if (match) return res.json({ duplicate: true, existingPurchase: toPurchase(match) });
+  return res.json({ duplicate: false });
+});
+
 router.post("/purchases", async (req, res) => {
   const body = req.body as {
     vendorName: string;

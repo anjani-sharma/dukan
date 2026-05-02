@@ -67,6 +67,8 @@ export default function Products() {
   const csvInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [dupWarning, setDupWarning] = useState<{ existingProduct: { id: number; name: string } } | null>(null);
+  const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null);
 
   const { data: products, isLoading } = useListProducts({}, { query: { queryKey: getListProductsQueryKey({}) } });
   const createProduct = useCreateProduct();

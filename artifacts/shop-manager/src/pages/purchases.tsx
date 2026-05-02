@@ -31,6 +31,8 @@ export default function Purchases() {
   const [items, setItems] = useState<PurchaseItem[]>([{ productName: "", quantity: 1, costPrice: 0, productId: null }]);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [dupWarning, setDupWarning] = useState<{ existingPurchase: { id: number; vendorName: string; totalAmount: number; createdAt: string } } | null>(null);
+  const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null);
 
   const { data: purchases, isLoading } = useListPurchases({ query: { queryKey: getListPurchasesQueryKey() } });
   const { data: products } = useListProducts({}, { query: { queryKey: getListProductsQueryKey({}) } });

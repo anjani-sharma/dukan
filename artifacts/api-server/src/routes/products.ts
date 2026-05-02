@@ -24,6 +24,20 @@ router.get("/products", async (req, res) => {
   return res.json(rows.map(toProduct));
 });
 
+// Duplicate name check
+router.get("/products/check-duplicate", async (req, res) => {
+  const name = (req.query.name as string ?? "").trim().toLowerCase();
+  const excludeId = req.query.excludeId ? Number(req.query.excludeId) : null;
+  if (!name) return res.json({ duplicate: false });
+  const rows = await db.select().from(productsTable);
+  const match = rows.find((r) => {
+    if (excludeId && r.id === excludeId) return false;
+    return r.name.trim().toLowerCase() === name;
+  });
+  if (match) return res.json({ duplicate: true, existingProduct: toProduct(match) });
+  return res.json({ duplicate: false });
+});
+
 router.post("/products", async (req, res) => {
   const body = CreateProductBody.parse(req.body);
   const [row] = await db.insert(productsTable).values({

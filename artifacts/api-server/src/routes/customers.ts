@@ -87,6 +87,18 @@ router.get("/customers/:customerId/payments", async (req, res) => {
   return res.json(rows.map(toPayment));
 });
 
+router.get("/customers/:customerId/payments/check-duplicate", async (req, res) => {
+  const customerId = Number(req.params.customerId);
+  const amount = req.query.amount ? parseFloat(req.query.amount as string) : null;
+  if (amount == null) return res.json({ duplicate: false });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const rows = await db.select().from(creditPaymentsTable)
+    .where(and(eq(creditPaymentsTable.customerId, customerId), gte(creditPaymentsTable.createdAt, today)));
+  const match = rows.find((r) => Math.abs(parseFloat(r.amount as string) - amount) < 0.01);
+  if (match) return res.json({ duplicate: true, existingPayment: toPayment(match) });
+  return res.json({ duplicate: false });
+});
+
 router.post("/customers/:customerId/payments", async (req, res) => {
   const { customerId } = RecordPaymentParams.parse({ customerId: Number(req.params.customerId) });
   const body = RecordPaymentBody.parse(req.body);

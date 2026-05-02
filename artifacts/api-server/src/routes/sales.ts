@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { salesTable, customersTable, productsTable } from "@workspace/db";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import {
   ListSalesQueryParams,
   CreateSaleBody,
@@ -32,6 +32,26 @@ router.get("/sales", async (req, res) => {
   const customerMap = new Map(customers.map((c) => [c.id, c.name]));
 
   return res.json(rows.map((r) => toSaleResponse(r, customerMap)));
+});
+
+// Duplicate check endpoint for sales
+router.get("/sales/check-duplicate", async (req, res) => {
+  const customerId = req.query.customerId ? Number(req.query.customerId) : null;
+  const totalAmount = req.query.totalAmount ? parseFloat(req.query.totalAmount as string) : null;
+  if (totalAmount == null) return res.json({ duplicate: false });
+  const windowMs = 30 * 1000; // 30 seconds
+  const since = new Date(Date.now() - windowMs);
+  const rows = await db.select().from(salesTable)
+    .where(and(gte(salesTable.createdAt, since)))
+    .orderBy(desc(salesTable.createdAt))
+    .limit(10);
+  const match = rows.find((r) => {
+    const sameTotal = Math.abs(parseFloat(r.totalAmount as string) - totalAmount) < 0.01;
+    const sameCustomer = customerId ? r.customerId === customerId : r.customerId == null;
+    return sameTotal && sameCustomer;
+  });
+  if (match) return res.json({ duplicate: true, existingSale: toSaleResponse(match, new Map()) });
+  return res.json({ duplicate: false });
 });
 
 router.post("/sales", async (req, res) => {

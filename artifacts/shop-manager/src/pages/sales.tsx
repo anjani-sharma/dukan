@@ -146,6 +146,8 @@ export default function Sales() {
   const chunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [dupWarning, setDupWarning] = useState<{ existingSale: { id: number; createdAt: string; totalAmount: number } } | null>(null);
+  const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null);
 
   const { data: sales, isLoading } = useListSales({}, { query: { queryKey: getListSalesQueryKey({}) } });
   const { data: products } = useListProducts({}, { query: { queryKey: getListProductsQueryKey({}) } });
