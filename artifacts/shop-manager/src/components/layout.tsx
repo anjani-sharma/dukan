@@ -24,8 +24,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <aside className="w-56 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col">
         <div className="px-5 py-5 border-b border-sidebar-border">
           <div>
-            <div className="text-2xl font-black text-primary tracking-tight leading-none">DOKAN</div>
-            <div className="text-xs text-muted-foreground mt-1">RK Enterprises · Electrical Shop</div>
+            <div
+              className="text-3xl font-black text-primary leading-none"
+              style={{ fontFamily: "'Noto Sans Devanagari', 'Mangal', sans-serif", letterSpacing: "-0.5px" }}
+            >
+              दुकान
+            </div>
+            <div className="text-[10px] font-semibold text-muted-foreground mt-1.5 tracking-widest uppercase">
+              RK Enterprises
+            </div>
           </div>
         </div>
 
