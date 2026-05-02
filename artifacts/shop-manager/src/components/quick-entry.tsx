@@ -4,7 +4,6 @@ import {
   useCreateSale,
   useRecordPayment,
   useParseInvoiceImage,
-  useCreateInvoice,
   useListCustomers,
   getListCustomersQueryKey,
   getListSalesQueryKey,
@@ -54,6 +53,7 @@ export function QuickEntry() {
   } | null>(null);
   const [stockResult, setStockResult] = useState<{ matched: number; total: number } | null>(null);
   const [editableItems, setEditableItems] = useState<{ name: string; quantity: number }[]>([]);
+  const [savingInvoice, setSavingInvoice] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
@@ -64,7 +64,6 @@ export function QuickEntry() {
   const createSale = useCreateSale();
   const recordPayment = useRecordPayment();
   const parseImage = useParseInvoiceImage();
-  const createInvoice = useCreateInvoice();
 
   function resetAll() {
     setTranscript("");
@@ -77,6 +76,7 @@ export function QuickEntry() {
     setInvoiceData(null);
     setStockResult(null);
     setEditableItems([]);
+    setSavingInvoice(false);
   }
 
   function close() {
@@ -195,56 +195,63 @@ export function QuickEntry() {
   }
 
   async function confirmInvoice() {
-    // Use fetch directly so we can include lineItems (not in generated schema)
-    const res = await fetch("/api/invoices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "purchase",
-        vendorOrCustomer: invoiceData?.vendorOrCustomer ?? null,
-        amount: invoiceData?.amount ?? null,
-        invoiceDate: invoiceData?.invoiceDate ?? null,
-        notes: "Uploaded via Quick Entry",
-        lineItems: editableItems.length > 0 ? editableItems : null,
-      }),
-    });
+    if (savingInvoice) return;
+    setSavingInvoice(true);
+    try {
+      // Use fetch directly so we can include lineItems (not in generated schema)
+      const res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "purchase",
+          vendorOrCustomer: invoiceData?.vendorOrCustomer ?? null,
+          amount: invoiceData?.amount ?? null,
+          invoiceDate: invoiceData?.invoiceDate ?? null,
+          notes: "Uploaded via Quick Entry",
+          lineItems: editableItems.length > 0 ? editableItems : null,
+        }),
+      });
 
-    if (!res.ok) {
-      toast({ title: "Failed to save invoice", variant: "destructive" });
-      return;
-    }
-
-    const invoice = await res.json() as { id: number };
-    qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
-
-    // Auto-apply stock if items were confirmed
-    if (editableItems.length > 0) {
-      try {
-        const stockRes = await fetch(`/api/invoices/${invoice.id}/apply-stock`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (stockRes.ok) {
-          const stockData = await stockRes.json() as { results: { matched: boolean }[] };
-          const matched = stockData.results.filter((r) => r.matched).length;
-          const total = stockData.results.length;
-          setStockResult({ matched, total });
-          qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
-          toast({
-            title: "Invoice saved — stock updated",
-            description: `${matched} of ${total} item${total !== 1 ? "s" : ""} matched & stock increased`,
-          });
-          // Close after a short delay so user sees the result
-          setTimeout(close, 1800);
-          return;
-        }
-      } catch {
-        // fall through to plain save toast
+      if (!res.ok) {
+        let detail = "";
+        try { const err = await res.json() as { error?: string }; detail = err.error ?? ""; } catch { /* ignore */ }
+        toast({ title: "Failed to save invoice", description: detail || `Server error (${res.status})`, variant: "destructive" });
+        return;
       }
-    }
 
-    toast({ title: "Invoice saved" });
-    close();
+      const invoice = await res.json() as { id: number };
+      qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
+
+      // Auto-apply stock if items were confirmed
+      if (editableItems.length > 0) {
+        try {
+          const stockRes = await fetch(`/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
+          if (stockRes.ok) {
+            const stockData = await stockRes.json() as { results: { matched: boolean }[] };
+            const matched = stockData.results.filter((r) => r.matched).length;
+            const total = stockData.results.length;
+            setStockResult({ matched, total });
+            qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
+            toast({
+              title: "Invoice saved — stock updated",
+              description: `${matched} of ${total} item${total !== 1 ? "s" : ""} matched & stock increased`,
+            });
+            setTimeout(close, 1800);
+            return;
+          }
+        } catch {
+          // fall through to plain save toast
+        }
+      }
+
+      toast({ title: "Invoice saved" });
+      close();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      toast({ title: "Failed to save invoice", description: msg, variant: "destructive" });
+    } finally {
+      setSavingInvoice(false);
+    }
   }
 
   const modeLabel: Record<Mode, string> = { voice: "Voice Sale", payment: "Record Payment", invoice: "Scan Invoice" };
@@ -560,10 +567,11 @@ export function QuickEntry() {
                     <Button
                       className="w-full"
                       onClick={confirmInvoice}
+                      disabled={savingInvoice}
                       data-testid="button-quick-confirm-invoice"
                     >
-                      {parseImage.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ChevronRight className="w-4 h-4 mr-2" />}
-                      {editableItems.length > 0 ? "Save & Update Stock" : "Save Invoice"}
+                      {savingInvoice ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ChevronRight className="w-4 h-4 mr-2" />}
+                      {savingInvoice ? "Saving…" : editableItems.length > 0 ? "Save & Update Stock" : "Save Invoice"}
                     </Button>
                   )}
 
