@@ -11,7 +11,7 @@ import {
   getListInvoicesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Mic, MicOff, CreditCard, Upload, Plus, X, Loader2, CheckCircle, ChevronRight } from "lucide-react";
+import { Mic, MicOff, CreditCard, Upload, Plus, X, Loader2, CheckCircle, ChevronRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -398,15 +398,22 @@ export function QuickEntry() {
                         <p className="text-sm text-muted-foreground">Scanning with AI...</p>
                       </div>
                     ) : invoicePreview ? (
-                      <img src={invoicePreview} alt="Invoice" className="max-h-36 mx-auto rounded object-contain" />
+                      invoicePreview.startsWith("data:application/pdf") ? (
+                        <div className="flex flex-col items-center gap-2 py-2">
+                          <FileText className="w-10 h-10 text-primary" />
+                          <p className="text-sm text-muted-foreground">PDF uploaded — AI scanning…</p>
+                        </div>
+                      ) : (
+                        <img src={invoicePreview} alt="Invoice" className="max-h-36 mx-auto rounded object-contain" />
+                      )
                     ) : (
                       <div className="flex flex-col items-center gap-2 py-2">
                         <Upload className="w-8 h-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">Tap to upload invoice photo</p>
-                        <p className="text-xs text-muted-foreground">AI will extract vendor, amount & date</p>
+                        <p className="text-sm text-muted-foreground">Tap to upload invoice or document</p>
+                        <p className="text-xs text-muted-foreground">Photo or PDF — AI will extract vendor, amount & date</p>
                       </div>
                     )}
-                    <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpload} data-testid="quick-input-invoice-image" />
+                    <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleImageUpload} data-testid="quick-input-invoice-image" />
                   </div>
 
                   {invoiceData && (
@@ -447,7 +454,7 @@ export function QuickEntry() {
 
                   {!invoiceData && !parseImage.isPending && (
                     <p className="text-xs text-muted-foreground text-center">
-                      You can also use your camera to capture a photo of a paper invoice
+                      Upload a photo, PDF, or use your camera to capture a paper invoice
                     </p>
                   )}
                 </div>
