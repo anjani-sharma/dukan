@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "";
+
 type Mode = "voice" | "payment" | "invoice";
 
 interface ParsedItem {
@@ -207,7 +209,7 @@ export function QuickEntry() {
       }
 
       // Use fetch directly so we can include lineItems + imageBase64 (not in generated schema)
-      const res = await fetch("/api/invoices", {
+      const res = await fetch(`${API_BASE}/api/invoices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -234,7 +236,7 @@ export function QuickEntry() {
       // Auto-apply stock if items were confirmed
       if (editableItems.length > 0) {
         try {
-          const stockRes = await fetch(`/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
+          const stockRes = await fetch(`${API_BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
           if (stockRes.ok) {
             const stockData = await stockRes.json() as { results: { matched: boolean; name: string }[] };
             const matched = stockData.results.filter((r) => r.matched).length;

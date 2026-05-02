@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "";
 
 type LineItem = { name: string; quantity: number; unitPrice: number; subtotal: number };
 type SaveInvoiceInput = {
@@ -55,7 +55,7 @@ function PaymentProofDialog({ invoice, onClose }: { invoice: InvoiceRow; onClose
 
   const patchInvoice = useMutation({
     mutationFn: async (data: { paid?: boolean; paymentProofUrl?: string | null }) => {
-      const r = await fetch(`${BASE}/api/invoices/${invoice.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      const r = await fetch(`${API_BASE}/api/invoices/${invoice.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       return r.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) }),
@@ -256,7 +256,7 @@ function ViewInvoiceDialog({ invoice, onClose }: { invoice: InvoiceRow; onClose:
   async function applyStock() {
     setApplying(true);
     try {
-      const r = await fetch(`${BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
+      const r = await fetch(`${API_BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
       const data = await r.json();
       if (!r.ok) { toast({ title: data.error ?? "Failed", variant: "destructive" }); return; }
       const matched = (data.results as { matched: boolean }[]).filter((x) => x.matched).length;
@@ -366,7 +366,7 @@ export default function Invoices() {
         setImageBase64(b64);
 
         // Check duplicate
-        const hashRes = await fetch(`${BASE}/api/invoices/check-duplicate?hash=${await sha256(b64)}`);
+        const hashRes = await fetch(`${API_BASE}/api/invoices/check-duplicate?hash=${await sha256(b64)}`);
         const hashData = await hashRes.json();
         if (hashData.duplicate) {
           setDuplicateWarning({ message: `This invoice was already uploaded (${hashData.existingInvoice.vendorOrCustomer ?? "unknown vendor"}, ${hashData.existingInvoice.invoiceDate ?? "no date"})`, existing: hashData.existingInvoice });
@@ -427,7 +427,7 @@ export default function Invoices() {
       mimeType: data.mimeType,
       lineItems: data.lineItems,
     };
-    const r = await fetch(`${BASE}/api/invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch(`${API_BASE}/api/invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const invoice = await r.json().catch(() => null);
     if (!r.ok) {
       throw new Error(invoice?.detail ?? invoice?.error ?? invoice?.message ?? `Invoice save failed (${r.status})`);
@@ -437,7 +437,7 @@ export default function Invoices() {
     toast({ title: "Invoice saved" });
 
     if (data.applyStock && data.type === "purchase" && invoice?.id) {
-      const sr = await fetch(`${BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
+      const sr = await fetch(`${API_BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
       const sd = await sr.json();
       if (!sr.ok) {
         toast({
