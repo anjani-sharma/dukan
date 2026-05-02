@@ -226,6 +226,19 @@ export default function Products() {
 
   return (
     <div className="p-6 space-y-5">
+      {/* Duplicate product warning */}
+      <Dialog open={!!dupWarning} onOpenChange={(o) => { if (!o) setDupWarning(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" /> Duplicate Product Name</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">A product named <span className="font-semibold text-foreground">"{dupWarning?.existingProduct?.name}"</span> already exists (ID #{dupWarning?.existingProduct?.id}).</p>
+          <p className="text-sm text-muted-foreground">Adding another with the same name may cause inventory confusion. Save anyway?</p>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="outline" onClick={() => setDupWarning(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { pendingSubmitRef.current?.(); }}>Save Anyway</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Products</h1>

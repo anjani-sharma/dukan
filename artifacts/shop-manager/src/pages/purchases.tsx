@@ -116,6 +116,19 @@ export default function Purchases() {
 
   return (
     <div className="p-6 space-y-5">
+      {/* Duplicate purchase warning */}
+      <Dialog open={!!dupWarning} onOpenChange={(o) => { if (!o) setDupWarning(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" /> Possible Duplicate Purchase</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">A purchase from <span className="font-semibold text-foreground">{dupWarning?.existingPurchase?.vendorName}</span> for <span className="font-semibold text-foreground">₹{dupWarning?.existingPurchase?.totalAmount?.toFixed(2)}</span> on the same date already exists (ID #{dupWarning?.existingPurchase?.id}).</p>
+          <p className="text-sm text-muted-foreground">This may be a duplicate bill entry. Save anyway?</p>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="outline" onClick={() => setDupWarning(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { pendingSubmitRef.current?.(); }}>Save Anyway</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Purchases</h1>

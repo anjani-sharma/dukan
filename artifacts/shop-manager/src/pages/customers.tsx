@@ -168,6 +168,19 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
         ) : null}
       </div>
 
+      {/* Duplicate payment warning */}
+      <Dialog open={!!dupWarning} onOpenChange={(o) => { if (!o) setDupWarning(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-400" /> Possible Duplicate Payment</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">A payment of <span className="font-semibold text-foreground">₹{parseFloat(dupWarning?.existingPayment?.amount ?? "0").toFixed(2)}</span> was already recorded today for this customer.</p>
+          <p className="text-sm text-muted-foreground">Are you sure this is a different payment?</p>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="outline" onClick={() => setDupWarning(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { pendingPaymentRef.current?.(); }}>Save Anyway</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Record Payment — {customer?.name}</DialogTitle></DialogHeader>
