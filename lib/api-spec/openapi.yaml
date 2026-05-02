@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Electrical Shop Manager API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: products
+    description: Product and stock management
+  - name: sales
+    description: Sales transactions
+  - name: customers
+    description: Customer management
+  - name: credits
+    description: Customer credit/balance tracking
+  - name: invoices
+    description: Invoice management
+  - name: dashboard
+    description: Dashboard summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,532 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── PRODUCTS ────────────────────────────────────────────────────────────────
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List all products
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: lowStock
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductBody"
+      responses:
+        "201":
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    put:
+      operationId: updateProduct
+      tags: [products]
+      summary: Update a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductBody"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Delete a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── SALES ───────────────────────────────────────────────────────────────────
+  /sales:
+    get:
+      operationId: listSales
+      tags: [sales]
+      summary: List sales
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: customerId
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of sales
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sale"
+    post:
+      operationId: createSale
+      tags: [sales]
+      summary: Create a sale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSaleBody"
+      responses:
+        "201":
+          description: Created sale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+
+  /sales/{id}:
+    get:
+      operationId: getSale
+      tags: [sales]
+      summary: Get a sale
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sale
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+    delete:
+      operationId: deleteSale
+      tags: [sales]
+      summary: Delete a sale
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── CUSTOMERS ───────────────────────────────────────────────────────────────
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: hasBalance
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerBody"
+      responses:
+        "201":
+          description: Created customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get a customer with credit history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer with credit details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+    put:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerBody"
+      responses:
+        "200":
+          description: Updated customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete a customer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── CREDIT PAYMENTS ─────────────────────────────────────────────────────────
+  /customers/{customerId}/payments:
+    get:
+      operationId: listCustomerPayments
+      tags: [credits]
+      summary: List payments for a customer
+      parameters:
+        - in: path
+          name: customerId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CreditPayment"
+    post:
+      operationId: recordPayment
+      tags: [credits]
+      summary: Record a credit payment from a customer
+      parameters:
+        - in: path
+          name: customerId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordPaymentBody"
+      responses:
+        "201":
+          description: Recorded payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditPayment"
+
+  # ─── INVOICES ────────────────────────────────────────────────────────────────
+  /invoices:
+    get:
+      operationId: listInvoices
+      tags: [invoices]
+      summary: List invoices
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [purchase, sale]
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+    post:
+      operationId: createInvoice
+      tags: [invoices]
+      summary: Create/upload an invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvoiceBody"
+      responses:
+        "201":
+          description: Created invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /invoices/{id}:
+    get:
+      operationId: getInvoice
+      tags: [invoices]
+      summary: Get an invoice
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Invoice
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+    delete:
+      operationId: deleteInvoice
+      tags: [invoices]
+      summary: Delete an invoice
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── DASHBOARD ───────────────────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent activity feed
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/sales-chart:
+    get:
+      operationId: getSalesChart
+      tags: [dashboard]
+      summary: Get daily sales totals for chart
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Sales chart data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalesChartPoint"
+
+  /dashboard/top-customers:
+    get:
+      operationId: getTopCustomers
+      tags: [dashboard]
+      summary: Customers with highest outstanding balances
+      responses:
+        "200":
+          description: Top debtors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomerBalanceSummary"
+
+  # ─── AI / TELEGRAM ───────────────────────────────────────────────────────────
+  /ai/transcribe-voice:
+    post:
+      operationId: transcribeVoice
+      tags: [sales]
+      summary: Transcribe a voice message and parse it into a sale entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranscribeVoiceBody"
+      responses:
+        "200":
+          description: Transcription and parsed sale data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscribeVoiceResult"
+
+  /ai/parse-invoice-image:
+    post:
+      operationId: parseInvoiceImage
+      tags: [invoices]
+      summary: Parse invoice data from a base64 image using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseInvoiceImageBody"
+      responses:
+        "200":
+          description: Extracted invoice data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParseInvoiceImageResult"
+
+  /telegram/webhook:
+    post:
+      operationId: telegramWebhook
+      tags: [sales]
+      summary: Telegram bot webhook endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +569,467 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sku:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        costPrice:
+          type: number
+        sellingPrice:
+          type: number
+        stockQuantity:
+          type: integer
+        lowStockThreshold:
+          type: integer
+        unit:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, costPrice, sellingPrice, stockQuantity, lowStockThreshold, unit, createdAt, updatedAt]
+
+    CreateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sku:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        costPrice:
+          type: number
+        sellingPrice:
+          type: number
+        stockQuantity:
+          type: integer
+        lowStockThreshold:
+          type: integer
+          default: 5
+        unit:
+          type: string
+          default: "pcs"
+      required: [name, costPrice, sellingPrice, stockQuantity]
+
+    UpdateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sku:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+        costPrice:
+          type: number
+        sellingPrice:
+          type: number
+        stockQuantity:
+          type: integer
+        lowStockThreshold:
+          type: integer
+        unit:
+          type: string
+
+    Sale:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+          nullable: true
+        customerName:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItem"
+        totalAmount:
+          type: number
+        paidAmount:
+          type: number
+        creditAmount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        source:
+          type: string
+          enum: [web, telegram]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, items, totalAmount, paidAmount, creditAmount, source, createdAt]
+
+    SaleItem:
+      type: object
+      properties:
+        productId:
+          type: integer
+          nullable: true
+        productName:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        subtotal:
+          type: number
+      required: [productName, quantity, unitPrice, subtotal]
+
+    CreateSaleBody:
+      type: object
+      properties:
+        customerId:
+          type: integer
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateSaleItemBody"
+        paidAmount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        source:
+          type: string
+          enum: [web, telegram]
+          default: web
+      required: [items, paidAmount]
+
+    CreateSaleItemBody:
+      type: object
+      properties:
+        productId:
+          type: integer
+          nullable: true
+        productName:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+      required: [productName, quantity, unitPrice]
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        totalCredit:
+          type: number
+        totalPaid:
+          type: number
+        outstandingBalance:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, totalCredit, totalPaid, outstandingBalance, createdAt]
+
+    CustomerDetail:
+      allOf:
+        - $ref: "#/components/schemas/Customer"
+        - type: object
+          properties:
+            sales:
+              type: array
+              items:
+                $ref: "#/components/schemas/Sale"
+            payments:
+              type: array
+              items:
+                $ref: "#/components/schemas/CreditPayment"
+          required: [sales, payments]
+
+    CreateCustomerBody:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+      required: [name]
+
+    UpdateCustomerBody:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+
+    CreditPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        amount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, customerId, amount, createdAt]
+
+    RecordPaymentBody:
+      type: object
+      properties:
+        amount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+      required: [amount]
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [purchase, sale]
+        vendorOrCustomer:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          nullable: true
+        invoiceDate:
+          type: string
+          format: date
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        aiExtractedData:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, type, createdAt]
+
+    CreateInvoiceBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [purchase, sale]
+        vendorOrCustomer:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          nullable: true
+        invoiceDate:
+          type: string
+          format: date
+          nullable: true
+        imageBase64:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [type]
+
+    DashboardSummary:
+      type: object
+      properties:
+        todaySales:
+          type: number
+        monthSales:
+          type: number
+        totalOutstanding:
+          type: number
+        totalCustomers:
+          type: integer
+        totalProducts:
+          type: integer
+        lowStockCount:
+          type: integer
+        todayTransactions:
+          type: integer
+        monthTransactions:
+          type: integer
+      required: [todaySales, monthSales, totalOutstanding, totalCustomers, totalProducts, lowStockCount, todayTransactions, monthTransactions]
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [sale, payment, invoice, product]
+        description:
+          type: string
+        amount:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, type, description, createdAt]
+
+    SalesChartPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        total:
+          type: number
+        transactions:
+          type: integer
+      required: [date, total, transactions]
+
+    CustomerBalanceSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        outstandingBalance:
+          type: number
+      required: [id, name, outstandingBalance]
+
+    TranscribeVoiceBody:
+      type: object
+      properties:
+        audioBase64:
+          type: string
+        mimeType:
+          type: string
+          default: "audio/ogg"
+      required: [audioBase64]
+
+    TranscribeVoiceResult:
+      type: object
+      properties:
+        transcript:
+          type: string
+        parsedSale:
+          type: object
+          nullable: true
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/CreateSaleItemBody"
+            notes:
+              type: string
+              nullable: true
+          required: [items]
+      required: [transcript]
+
+    ParseInvoiceImageBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+        mimeType:
+          type: string
+          default: "image/jpeg"
+      required: [imageBase64]
+
+    ParseInvoiceImageResult:
+      type: object
+      properties:
+        vendorOrCustomer:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          nullable: true
+        invoiceDate:
+          type: string
+          format: date
+          nullable: true
+        items:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              quantity:
+                type: number
+              unitPrice:
+                type: number
+              subtotal:
+                type: number
+            required: [name, quantity, unitPrice, subtotal]
+        rawText:
+          type: string
+          nullable: true
+      required: []
