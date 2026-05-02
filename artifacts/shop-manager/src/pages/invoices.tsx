@@ -363,7 +363,12 @@ export default function Invoices() {
 
       // AI parse
       const result = await parseImage.mutateAsync({ data: { imageBase64: b64, mimeType: mime } });
-      setParsedData(result);
+      setParsedData({
+        vendorOrCustomer: result.vendorOrCustomer ?? undefined,
+        amount: result.amount ?? undefined,
+        invoiceDate: result.invoiceDate ?? undefined,
+        items: result.items ?? undefined,
+      });
       setScanning(false);
       setDialogOpen(false);
       setReviewOpen(true);

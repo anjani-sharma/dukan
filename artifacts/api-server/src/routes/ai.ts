@@ -49,10 +49,10 @@ router.post("/ai/transcribe-voice", async (req, res) => {
 
     const { Readable } = await import("stream");
     const stream = Readable.from(audioBuffer);
-    (stream as Record<string, unknown>).name = `audio.${ext}`;
+    (stream as unknown as Record<string, unknown>).name = `audio.${ext}`;
 
     const transcription = await openai.audio.transcriptions.create({
-      file: stream as Parameters<typeof openai.audio.transcriptions.create>[0]["file"],
+      file: stream as unknown as Parameters<typeof openai.audio.transcriptions.create>[0]["file"],
       model: "gpt-4o-mini-transcribe",
       language: "hi",
     });

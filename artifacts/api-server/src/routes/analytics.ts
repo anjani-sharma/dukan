@@ -20,7 +20,7 @@ router.get("/analytics/summary", async (_req, res) => {
 
   // COGS estimate = cost price * quantity for each sale item (cross-referenced with products)
   const productCostMap: Record<string, number> = {};
-  allProducts.forEach((p) => { productCostMap[p.name.toLowerCase()] = p.costPrice; });
+  allProducts.forEach((p) => { productCostMap[p.name.toLowerCase()] = parseFloat(p.costPrice as string); });
 
   let totalCOGS = 0;
   allSales.forEach((sale) => {
@@ -74,7 +74,7 @@ router.get("/analytics/monthly", async (_req, res) => {
   const allProducts = await db.select().from(productsTable);
 
   const productCostMap: Record<string, number> = {};
-  allProducts.forEach((p) => { productCostMap[p.name.toLowerCase()] = p.costPrice; });
+  allProducts.forEach((p) => { productCostMap[p.name.toLowerCase()] = parseFloat(p.costPrice as string); });
 
   // Build a map of months → {revenue, cogs, purchases}
   const monthMap: Record<string, { month: string; revenue: number; cogs: number; purchases: number }> = {};

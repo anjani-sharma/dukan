@@ -72,7 +72,7 @@ router.post("/invoices", async (req, res) => {
     type: body.type,
     vendorOrCustomer: body.vendorOrCustomer ?? null,
     amount: body.amount != null ? String(body.amount) : null,
-    invoiceDate: body.invoiceDate ?? null,
+    invoiceDate: body.invoiceDate instanceof Date ? body.invoiceDate.toISOString().split("T")[0] : (body.invoiceDate ?? null),
     imageUrl,
     imageHash,
     paymentProofUrl: null,

@@ -213,10 +213,10 @@ router.post("/telegram/webhook", async (req, res) => {
       const openai = getOpenAI();
       const { Readable } = await import("stream");
       const stream = Readable.from(audioBuffer);
-      (stream as Record<string, unknown>).name = "audio.ogg";
+      (stream as unknown as Record<string, unknown>).name = "audio.ogg";
 
       const transcription = await openai.audio.transcriptions.create({
-        file: stream as Parameters<typeof openai.audio.transcriptions.create>[0]["file"],
+        file: stream as unknown as Parameters<typeof openai.audio.transcriptions.create>[0]["file"],
         model: "whisper-1",
       });
 
