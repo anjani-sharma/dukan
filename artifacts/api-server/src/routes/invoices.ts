@@ -106,6 +106,35 @@ router.patch("/invoices/:id", async (req, res) => {
   return res.json(toInvoice(row));
 });
 
+// Word-overlap similarity: tokenise both names and compute Jaccard score
+function wordSimilarity(a: string, b: string): number {
+  const tok = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9.]/g, " ").split(/\s+/).filter(Boolean));
+  const ta = tok(a);
+  const tb = tok(b);
+  let common = 0;
+  for (const w of ta) if (tb.has(w)) common++;
+  const union = new Set([...ta, ...tb]).size;
+  return union === 0 ? 0 : common / union;
+}
+
+function bestProductMatch(name: string, products: (typeof productsTable.$inferSelect)[]) {
+  const lower = name.toLowerCase().trim();
+  // 1. Exact
+  const exact = products.find((p) => p.name.toLowerCase() === lower);
+  if (exact) return exact;
+  // 2. Substring contains
+  const sub = products.find((p) => p.name.toLowerCase().includes(lower) || lower.includes(p.name.toLowerCase()));
+  if (sub) return sub;
+  // 3. Word-overlap (Jaccard ≥ 0.35)
+  let best: (typeof productsTable.$inferSelect) | null = null;
+  let bestScore = 0.35;
+  for (const p of products) {
+    const score = wordSimilarity(p.name, name);
+    if (score > bestScore) { best = p; bestScore = score; }
+  }
+  return best ?? null;
+}
+
 // Apply line items to stock (increase product quantities)
 router.post("/invoices/:id/apply-stock", async (req, res) => {
   const id = Number(req.params.id);
@@ -120,11 +149,7 @@ router.post("/invoices/:id/apply-stock", async (req, res) => {
   const results: { name: string; matched: boolean; productId?: number }[] = [];
 
   for (const item of lineItems) {
-    const nameLower = item.name.toLowerCase().trim();
-    // Try exact then fuzzy match
-    const match = allProducts.find((p) => p.name.toLowerCase() === nameLower)
-      ?? allProducts.find((p) => p.name.toLowerCase().includes(nameLower) || nameLower.includes(p.name.toLowerCase()));
-
+    const match = bestProductMatch(item.name, allProducts);
     if (match) {
       await db.update(productsTable).set({
         stockQuantity: match.stockQuantity + Math.round(item.quantity),

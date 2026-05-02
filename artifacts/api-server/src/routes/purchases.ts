@@ -57,13 +57,35 @@ router.post("/purchases", async (req, res) => {
     totalAmount: String(totalAmount),
   }).returning();
 
-  // Auto-increment stock for matched products
+  // Auto-increment stock for matched products (word-overlap fuzzy matching)
   if (body.applyStock !== false) {
     const allProducts = await db.select().from(productsTable);
-    const byName = new Map(allProducts.map((p) => [p.name.toLowerCase(), p]));
+    const tok = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9.]/g, " ").split(/\s+/).filter(Boolean));
+    const wordSim = (a: string, b: string) => {
+      const ta = tok(a); const tb = tok(b);
+      let common = 0; for (const w of ta) if (tb.has(w)) common++;
+      const union = new Set([...ta, ...tb]).size;
+      return union === 0 ? 0 : common / union;
+    };
     for (const item of items) {
-      const nameKey = item.productName?.toLowerCase();
-      const pid = item.productId ?? (nameKey ? byName.get(nameKey)?.id : null) ?? null;
+      let pid = item.productId ?? null;
+      if (!pid && item.productName) {
+        const name = item.productName;
+        const lower = name.toLowerCase().trim();
+        // 1. exact  2. substring  3. word-overlap ≥ 0.35
+        const match = allProducts.find((p) => p.name.toLowerCase() === lower)
+          ?? allProducts.find((p) => p.name.toLowerCase().includes(lower) || lower.includes(p.name.toLowerCase()))
+          ?? (() => {
+            let best = null as typeof allProducts[0] | null;
+            let bestScore = 0.35;
+            for (const p of allProducts) {
+              const s = wordSim(p.name, name);
+              if (s > bestScore) { best = p; bestScore = s; }
+            }
+            return best;
+          })();
+        pid = match?.id ?? null;
+      }
       if (pid) {
         await db.update(productsTable)
           .set({ stockQuantity: sql`${productsTable.stockQuantity} + ${item.quantity}` })
