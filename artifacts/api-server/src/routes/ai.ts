@@ -6,6 +6,13 @@ import { z } from "zod";
 
 const router = Router();
 
+function extractJson(text: string): string {
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) return fenced[1].trim();
+  return text.trim();
+}
+
 function getAnthropic() {
   // Prefer Replit AI integration (no user key needed), fall back to user's own key
   const integrationKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
@@ -60,7 +67,7 @@ If price not mentioned use 0. Return valid JSON only, no markdown.`,
     let parsedSale = null;
     try {
       const content = parseResponse.content[0]?.type === "text" ? parseResponse.content[0].text : "{}";
-      parsedSale = JSON.parse(content);
+      parsedSale = JSON.parse(extractJson(content));
     } catch {
       req.log.warn("Failed to parse Claude response as JSON");
     }
@@ -127,7 +134,7 @@ Return JSON only (no markdown):
     });
 
     const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
-    const data = JSON.parse(content);
+    const data = JSON.parse(extractJson(content));
     return res.json(data);
   } catch (err) {
     req.log.error({ err }, "Invoice image parsing failed");
@@ -199,7 +206,7 @@ Return JSON only (no markdown):
     });
 
     const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
-    const data = JSON.parse(content);
+    const data = JSON.parse(extractJson(content));
     return res.json(data);
   } catch (err) {
     req.log.error({ err }, "Payment receipt parsing failed");
