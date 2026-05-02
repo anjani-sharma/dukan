@@ -7,6 +7,7 @@ import invoicesRouter from "./invoices";
 import dashboardRouter from "./dashboard";
 import aiRouter from "./ai";
 import telegramRouter from "./telegram";
+import analyticsRouter from "./analytics";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(invoicesRouter);
 router.use(dashboardRouter);
 router.use(aiRouter);
 router.use(telegramRouter);
+router.use(analyticsRouter);
 
 export default router;

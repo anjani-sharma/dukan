@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, date, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, date, jsonb, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,6 +9,8 @@ export const invoicesTable = pgTable("invoices", {
   amount: numeric("amount", { precision: 12, scale: 2 }),
   invoiceDate: date("invoice_date"),
   imageUrl: text("image_url"),
+  paymentProofUrl: text("payment_proof_url"),
+  paid: boolean("paid").notNull().default(false),
   notes: text("notes"),
   aiExtractedData: jsonb("ai_extracted_data"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
