@@ -66,12 +66,46 @@ function AddPaymentDialog({ prefillVendor, onClose }: { prefillVendor?: string; 
     },
   });
 
+  const [scanning, setScanning] = useState(false);
+  const [scannedInfo, setScannedInfo] = useState<{ bankName?: string; accountHolder?: string; referenceNumber?: string } | null>(null);
+
   async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    const mime = file.type || "image/jpeg";
     const reader = new FileReader();
-    reader.onload = () => { setProofPreview(reader.result as string); setUploading(false); };
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setProofPreview(dataUrl);
+      setUploading(false);
+
+      // AI parse the receipt
+      setScanning(true);
+      try {
+        const b64 = dataUrl.split(",")[1];
+        const r = await fetch(`${BASE}/api/ai/parse-payment-receipt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: b64, mimeType: mime }),
+        });
+        const data = await r.json();
+        if (data.amount) setAmount(String(data.amount));
+        if (data.paymentDate) setDate(data.paymentDate);
+        if (data.paymentMethod) setMethod(data.paymentMethod as PaymentMethod);
+        if (data.bankName || data.accountHolder || data.referenceNumber) {
+          setScannedInfo({ bankName: data.bankName, accountHolder: data.accountHolder, referenceNumber: data.referenceNumber });
+          const noteParts = [data.bankName, data.referenceNumber ? `Ref: ${data.referenceNumber}` : null].filter(Boolean);
+          if (noteParts.length > 0 && !notes) setNotes(noteParts.join(" · "));
+        }
+        if (data.merchantOrVendor && !vendorName) setVendorName(data.merchantOrVendor);
+        toast({ title: "Receipt scanned", description: `₹${data.amount ?? "?"} · ${data.paymentMethod ?? "unknown method"}` });
+      } catch {
+        toast({ title: "Could not read receipt automatically", description: "Please fill in details manually" });
+      } finally {
+        setScanning(false);
+      }
+    };
     reader.readAsDataURL(file);
   }
 
@@ -83,15 +117,52 @@ function AddPaymentDialog({ prefillVendor, onClose }: { prefillVendor?: string; 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative bg-card border border-card-border rounded-2xl shadow-2xl z-10 w-full max-w-md space-y-4 p-6">
+      <div className="relative bg-card border border-card-border rounded-2xl shadow-2xl z-10 w-full max-w-md space-y-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-foreground">Record Payment to Vendor</h3>
+          <div>
+            <h3 className="font-semibold text-foreground">Record Payment to Vendor</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Upload a receipt — AI will fill in the details</p>
+          </div>
           <Button variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
+        </div>
+
+        {/* Receipt upload FIRST — AI fills the form */}
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1.5">Receipt / Bank Slip / Screenshot</label>
+          <div className="border-2 border-dashed border-card-border rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileRef.current?.click()}>
+            {uploading || scanning ? (
+              <div className="flex flex-col items-center gap-2 py-3">
+                <Loader2 className="w-7 h-7 text-primary animate-spin" />
+                <p className="text-xs text-muted-foreground">{uploading ? "Loading image..." : "AI reading receipt..."}</p>
+              </div>
+            ) : proofPreview ? (
+              <div className="space-y-2">
+                <img src={proofPreview} alt="Receipt" className="max-h-32 mx-auto rounded object-contain" />
+                {scannedInfo && (
+                  <div className="text-left bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 text-xs space-y-0.5">
+                    {scannedInfo.bankName && <div className="text-emerald-400 font-medium">{scannedInfo.bankName}</div>}
+                    {scannedInfo.accountHolder && <div className="text-muted-foreground">A/c: {scannedInfo.accountHolder}</div>}
+                    {scannedInfo.referenceNumber && <div className="text-muted-foreground">Ref: {scannedInfo.referenceNumber}</div>}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Tap to change</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-3">
+                <Image className="w-7 h-7 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Upload bank slip, GPay or UPI screenshot</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">AI will extract amount, date and bank details automatically</p>
+                </div>
+              </div>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleProofUpload} />
+          </div>
         </div>
 
         {/* Vendor name with datalist */}
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Vendor Name</label>
+          <label className="text-xs text-muted-foreground">Vendor / Supplier Name</label>
           <Input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Who did you pay?" list="vendor-list" />
           <datalist id="vendor-list">{vendorNames.map((v) => <option key={v} value={v} />)}</datalist>
         </div>
@@ -122,29 +193,14 @@ function AddPaymentDialog({ prefillVendor, onClose }: { prefillVendor?: string; 
           </div>
         </div>
 
-        {/* Receipt upload */}
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1.5">Receipt / Screenshot (optional)</label>
-          <div className="border-2 border-dashed border-card-border rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileRef.current?.click()}>
-            {uploading ? (
-              <div className="flex flex-col items-center gap-1 py-2"><Loader2 className="w-6 h-6 text-primary animate-spin" /><p className="text-xs text-muted-foreground">Uploading...</p></div>
-            ) : proofPreview ? (
-              <img src={proofPreview} alt="Receipt" className="max-h-28 mx-auto rounded object-contain" />
-            ) : (
-              <div className="flex flex-col items-center gap-1 py-2"><Image className="w-6 h-6 text-muted-foreground" /><p className="text-xs text-muted-foreground">Upload bank slip, GPay or UPI screenshot</p></div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleProofUpload} />
-          </div>
-        </div>
-
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Notes (optional)</label>
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Against invoice #123" />
+          <label className="text-xs text-muted-foreground">Notes</label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Bank of Baroda · Ref: 0208376469" />
         </div>
 
         <div className="flex gap-2 pt-1">
           <Button variant="ghost" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button className="flex-1" onClick={save} disabled={create.isPending}>Save Payment</Button>
+          <Button className="flex-1" onClick={save} disabled={create.isPending || scanning}>Save Payment</Button>
         </div>
       </div>
     </div>
