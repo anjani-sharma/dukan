@@ -9,6 +9,7 @@ import {
   getListCustomersQueryKey,
   getListSalesQueryKey,
   getListInvoicesQueryKey,
+  getListProductsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Mic, MicOff, CreditCard, Upload, Plus, X, Loader2, CheckCircle, ChevronRight, FileText } from "lucide-react";
@@ -45,7 +46,13 @@ export function QuickEntry() {
 
   // Invoice state
   const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
-  const [invoiceData, setInvoiceData] = useState<{ vendorOrCustomer?: string; amount?: number; invoiceDate?: string } | null>(null);
+  const [invoiceData, setInvoiceData] = useState<{
+    vendorOrCustomer?: string;
+    amount?: number;
+    invoiceDate?: string;
+    items?: { name: string; quantity: number; unitPrice: number; subtotal: number }[];
+  } | null>(null);
+  const [stockResult, setStockResult] = useState<{ matched: number; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
@@ -67,6 +74,7 @@ export function QuickEntry() {
     setPayNotes("");
     setInvoicePreview(null);
     setInvoiceData(null);
+    setStockResult(null);
   }
 
   function close() {
@@ -158,8 +166,22 @@ export function QuickEntry() {
       try {
         const b64 = dataUrl.split(",")[1];
         const result = await parseImage.mutateAsync({ data: { imageBase64: b64, mimeType: file.type || "image/jpeg" } });
-        setInvoiceData({ vendorOrCustomer: result.vendorOrCustomer ?? undefined, amount: result.amount ?? undefined, invoiceDate: result.invoiceDate ?? undefined });
-        toast({ title: "Invoice scanned", description: result.vendorOrCustomer ?? "Details extracted" });
+        const items = (result.items ?? []).map((it: { name: string; quantity: number; unitPrice: number; subtotal: number }) => ({
+          name: it.name,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          subtotal: it.subtotal ?? it.quantity * it.unitPrice,
+        }));
+        setInvoiceData({
+          vendorOrCustomer: result.vendorOrCustomer ?? undefined,
+          amount: result.amount ?? undefined,
+          invoiceDate: result.invoiceDate ?? undefined,
+          items: items.length > 0 ? items : undefined,
+        });
+        const desc = items.length > 0
+          ? `${items.length} item${items.length > 1 ? "s" : ""} extracted — stock will update on save`
+          : (result.vendorOrCustomer ?? "Details extracted");
+        toast({ title: "Invoice scanned", description: desc });
       } catch {
         toast({ title: "AI scan failed", description: "You can still save the invoice manually", variant: "destructive" });
       }
@@ -168,21 +190,56 @@ export function QuickEntry() {
   }
 
   async function confirmInvoice() {
-    await createInvoice.mutateAsync({
-      data: {
+    // Use fetch directly so we can include lineItems (not in generated schema)
+    const res = await fetch("/api/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         type: "purchase",
         vendorOrCustomer: invoiceData?.vendorOrCustomer ?? null,
         amount: invoiceData?.amount ?? null,
         invoiceDate: invoiceData?.invoiceDate ?? null,
         notes: "Uploaded via Quick Entry",
-      },
-    }, {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
-        toast({ title: "Invoice saved" });
-        close();
-      },
+        lineItems: invoiceData?.items ?? null,
+      }),
     });
+
+    if (!res.ok) {
+      toast({ title: "Failed to save invoice", variant: "destructive" });
+      return;
+    }
+
+    const invoice = await res.json() as { id: number };
+    qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
+
+    // Auto-apply stock if items were extracted
+    if (invoiceData?.items?.length) {
+      try {
+        const stockRes = await fetch(`/api/invoices/${invoice.id}/apply-stock`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (stockRes.ok) {
+          const stockData = await stockRes.json() as { results: { matched: boolean }[] };
+          const matched = stockData.results.filter((r) => r.matched).length;
+          const total = stockData.results.length;
+          setStockResult({ matched, total });
+          qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
+          toast({
+            title: "Invoice saved — stock updated",
+            description: `${matched} of ${total} item${total !== 1 ? "s" : ""} matched & stock increased`,
+          });
+          // Close after a short delay so user sees the result
+          setTimeout(close, 1800);
+          return;
+        }
+      } catch {
+        // fall through to plain save toast
+      }
+    }
+
+    toast({ title: "Invoice saved" });
+    close();
   }
 
   const modeLabel: Record<Mode, string> = { voice: "Voice Sale", payment: "Record Payment", invoice: "Scan Invoice" };
@@ -443,6 +500,22 @@ export function QuickEntry() {
                           <span className="text-foreground font-medium">{invoiceData.invoiceDate}</span>
                         </div>
                       )}
+
+                      {invoiceData.items && invoiceData.items.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border/50">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                            Items — stock will be updated
+                          </p>
+                          <div className="space-y-1.5">
+                            {invoiceData.items.map((item, i) => (
+                              <div key={i} className="flex justify-between text-xs">
+                                <span className="text-foreground truncate pr-2">{item.name}</span>
+                                <span className="text-muted-foreground shrink-0">×{item.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -450,11 +523,10 @@ export function QuickEntry() {
                     <Button
                       className="w-full"
                       onClick={confirmInvoice}
-                      disabled={createInvoice.isPending}
                       data-testid="button-quick-confirm-invoice"
                     >
-                      {createInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ChevronRight className="w-4 h-4 mr-2" />}
-                      Save Invoice
+                      {parseImage.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ChevronRight className="w-4 h-4 mr-2" />}
+                      {invoiceData.items?.length ? "Save & Update Stock" : "Save Invoice"}
                     </Button>
                   )}
 
