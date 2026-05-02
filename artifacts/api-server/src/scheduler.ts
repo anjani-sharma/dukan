@@ -89,7 +89,7 @@ export async function sendDailyReport() {
     });
   }
 
-  msg += `\n<i>Sent by दोकान · RK Enterprises</i>`;
+  msg += `\n<i>Sent by दोकाने · RK Enterprises</i>`;
 
   for (const chatId of subscribers) {
     await sendTelegramMessage(chatId, msg);
@@ -156,7 +156,7 @@ export async function sendWeeklyReport() {
     });
   }
 
-  msg += `\n<i>Weekly summary by दोकान · RK Enterprises</i>`;
+  msg += `\n<i>Weekly summary by दोकाने · RK Enterprises</i>`;
 
   for (const chatId of subscribers) {
     await sendTelegramMessage(chatId, msg);

@@ -28,7 +28,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="text-3xl font-black text-primary leading-none"
               style={{ fontFamily: "'Noto Sans Devanagari', 'Mangal', sans-serif", letterSpacing: "-0.5px" }}
             >
-              दोकान
+              दोकाने
             </div>
             <div className="text-[10px] font-semibold text-muted-foreground mt-1.5 tracking-widest uppercase">
               RK Enterprises
