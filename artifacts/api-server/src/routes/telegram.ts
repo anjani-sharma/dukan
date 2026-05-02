@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { salesTable, customersTable, productsTable, creditPaymentsTable, invoicesTable } from "@workspace/db";
+import { salesTable, customersTable, productsTable, creditPaymentsTable, invoicesTable, telegramSubscribersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { sendDailyReport, sendWeeklyReport } from "../scheduler";
 import OpenAI from "openai";
 import { logger } from "../lib/logger";
 
@@ -94,14 +96,41 @@ router.post("/telegram/webhook", async (req, res) => {
     if (text === "/start" || text === "/help") {
       await sendTelegramMessage(
         chatId,
-        `👋 <b>Electrical Shop Manager</b>\n\n` +
+        `👋 <b>दुकान · RK Enterprises</b>\n\n` +
           `Commands:\n` +
           `/summary — Today's sales summary\n` +
+          `/weekly — This week's report\n` +
           `/outstanding — Customer balances\n` +
           `/lowstock — Low stock items\n` +
+          `/subscribe — Get daily & weekly auto-reports\n` +
+          `/unsubscribe — Stop auto-reports\n` +
           `\n🎤 Voice message → Log a sale automatically\n` +
           `📸 Photo → Scan an invoice`,
       );
+      return;
+    }
+
+    if (text === "/subscribe") {
+      const chatTitle = message.chat.title ?? message.chat.first_name ?? String(chatId);
+      await db
+        .insert(telegramSubscribersTable)
+        .values({ chatId: String(chatId), chatTitle })
+        .onConflictDoNothing();
+      await sendTelegramMessage(
+        chatId,
+        `✅ <b>Subscribed!</b>\n\nYou'll receive:\n• Daily report every evening at 9 PM IST\n• Weekly summary every Sunday at 9 PM IST\n\nSend /unsubscribe to stop.`,
+      );
+      return;
+    }
+
+    if (text === "/unsubscribe") {
+      await db.delete(telegramSubscribersTable).where(eq(telegramSubscribersTable.chatId, String(chatId)));
+      await sendTelegramMessage(chatId, `🔕 Unsubscribed. You won't receive automatic reports anymore.\nSend /subscribe to re-enable.`);
+      return;
+    }
+
+    if (text === "/weekly") {
+      await sendWeeklyReport();
       return;
     }
 

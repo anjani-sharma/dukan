@@ -5,3 +5,4 @@ export * from "./invoices";
 export * from "./vendor-payments";
 export * from "./purchases";
 export * from "./returns";
+export * from "./telegram-subscribers";
