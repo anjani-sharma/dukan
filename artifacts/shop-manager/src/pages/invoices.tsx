@@ -411,7 +411,12 @@ export default function Invoices() {
         const sr = await fetch(`${BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
         const sd = await sr.json();
         if (!sr.ok) {
-          throw new Error(sd?.error ?? `Stock update failed (${sr.status})`);
+          toast({
+            title: "Invoice saved, stock not updated",
+            description: sd?.error ?? `Stock update failed (${sr.status})`,
+            variant: "destructive",
+          });
+          return;
         }
         const matched = (sd.results as { matched: boolean }[])?.filter((x) => x.matched).length ?? 0;
         const unmatched = (sd.results?.length ?? 0) - matched;

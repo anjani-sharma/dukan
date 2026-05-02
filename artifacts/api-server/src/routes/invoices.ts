@@ -15,6 +15,10 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Unknown server error";
+}
+
 const PatchInvoiceBody = z.object({
   paid: z.boolean().optional(),
   paymentProofUrl: z.string().nullable().optional(),
@@ -49,46 +53,51 @@ router.get("/invoices/check-duplicate", async (req, res) => {
 });
 
 router.post("/invoices", async (req, res) => {
-  const body = CreateInvoiceBody.parse(req.body);
-  const extra = req.body as {
-    imageBase64?: string;
-    lineItems?: { name: string; quantity: number; unitPrice: number; subtotal: number }[];
-  };
+  try {
+    const body = CreateInvoiceBody.parse(req.body);
+    const extra = req.body as {
+      imageBase64?: string;
+      lineItems?: { name: string; quantity: number; unitPrice: number; subtotal: number }[];
+    };
 
-  // Compute hash if image provided
-  let imageHash: string | null = null;
-  let imageUrl: string | null = null;
-  if (extra.imageBase64) {
-    imageHash = createHash("sha256").update(extra.imageBase64).digest("hex");
-    const mimeType = req.body.mimeType ?? "image/jpeg";
-    const ext = mimeType.split("/")[1] ?? "jpg";
-    const key = `invoices/${randomUUID()}.${ext}`;
-    const buffer = Buffer.from(extra.imageBase64, "base64");
-    let r2Url: string | null = null;
-    try {
-      r2Url = await uploadToR2(buffer, key, mimeType);
-    } catch (err) {
-      logger.warn({ err }, "Failed to upload invoice image to R2; saving invoice with embedded image");
+    // Compute hash if image provided
+    let imageHash: string | null = null;
+    let imageUrl: string | null = null;
+    if (extra.imageBase64) {
+      imageHash = createHash("sha256").update(extra.imageBase64).digest("hex");
+      const mimeType = req.body.mimeType ?? "image/jpeg";
+      const ext = mimeType.split("/")[1] ?? "jpg";
+      const key = `invoices/${randomUUID()}.${ext}`;
+      const buffer = Buffer.from(extra.imageBase64, "base64");
+      let r2Url: string | null = null;
+      try {
+        r2Url = await uploadToR2(buffer, key, mimeType);
+      } catch (err) {
+        logger.warn({ err }, "Failed to upload invoice image to R2; saving invoice with embedded image");
+      }
+      // Use R2 URL if available, otherwise fall back to base64 data URL
+      imageUrl = r2Url ?? `data:${mimeType};base64,${extra.imageBase64}`;
     }
-    // Use R2 URL if available, otherwise fall back to base64 data URL
-    imageUrl = r2Url ?? `data:${mimeType};base64,${extra.imageBase64}`;
-  }
 
-  const [row] = await db.insert(invoicesTable).values({
-    type: body.type,
-    vendorOrCustomer: body.vendorOrCustomer ?? null,
-    amount: body.amount != null ? String(body.amount) : null,
-    invoiceDate: body.invoiceDate instanceof Date ? body.invoiceDate.toISOString().split("T")[0] : (body.invoiceDate ?? null),
-    imageUrl,
-    imageHash,
-    paymentProofUrl: null,
-    paid: false,
-    lineItems: extra.lineItems ?? null,
-    stockUpdated: false,
-    notes: body.notes ?? null,
-    aiExtractedData: null,
-  }).returning();
-  return res.status(201).json(toInvoice(row));
+    const [row] = await db.insert(invoicesTable).values({
+      type: body.type,
+      vendorOrCustomer: body.vendorOrCustomer ?? null,
+      amount: body.amount != null ? String(body.amount) : null,
+      invoiceDate: body.invoiceDate instanceof Date ? body.invoiceDate.toISOString().split("T")[0] : (body.invoiceDate ?? null),
+      imageUrl,
+      imageHash,
+      paymentProofUrl: null,
+      paid: false,
+      lineItems: extra.lineItems ?? null,
+      stockUpdated: false,
+      notes: body.notes ?? null,
+      aiExtractedData: null,
+    }).returning();
+    return res.status(201).json(toInvoice(row));
+  } catch (err) {
+    logger.error({ err }, "Failed to save invoice");
+    return res.status(500).json({ error: "Failed to save invoice", detail: errorMessage(err) });
+  }
 });
 
 router.get("/invoices/:id", async (req, res) => {
