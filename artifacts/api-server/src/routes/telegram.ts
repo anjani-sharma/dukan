@@ -110,7 +110,7 @@ router.post("/telegram/webhook", async (req, res) => {
     if (text === "/start" || text === "/help") {
       await sendTelegramMessage(
         chatId,
-        `👋 <b>दुकान · RK Enterprises</b>\n\n` +
+        `👋 <b>दोकान · RK Enterprises</b>\n\n` +
           `Commands:\n` +
           `/summary — Today's sales summary\n` +
           `/weekly — This week's report\n` +
