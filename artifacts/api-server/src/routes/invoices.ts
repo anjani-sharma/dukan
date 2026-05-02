@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { invoicesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { invoicesTable, productsTable } from "@workspace/db";
+import { eq, ilike } from "drizzle-orm";
 import {
   ListInvoicesQueryParams,
   CreateInvoiceBody,
@@ -9,6 +9,7 @@ import {
   DeleteInvoiceParams,
 } from "@workspace/api-zod";
 import { z } from "zod";
+import { createHash } from "node:crypto";
 
 const router = Router();
 
@@ -16,29 +17,63 @@ const PatchInvoiceBody = z.object({
   paid: z.boolean().optional(),
   paymentProofUrl: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  stockUpdated: z.boolean().optional(),
+  lineItems: z.array(z.object({
+    name: z.string(),
+    quantity: z.number(),
+    unitPrice: z.number(),
+    subtotal: z.number(),
+  })).nullable().optional(),
 });
 
 router.get("/invoices", async (req, res) => {
   const query = ListInvoicesQueryParams.parse(req.query);
   let rows = await db.select().from(invoicesTable);
-
   if (query.type) rows = rows.filter((r) => r.type === query.type);
   if (query.from) { const from = new Date(query.from); rows = rows.filter((r) => r.createdAt >= from); }
   if (query.to) { const to = new Date(query.to); to.setHours(23, 59, 59); rows = rows.filter((r) => r.createdAt <= to); }
-
   return res.json(rows.map(toInvoice));
+});
+
+// Check duplicate by image hash
+router.get("/invoices/check-duplicate", async (req, res) => {
+  const hash = req.query.hash as string;
+  if (!hash) return res.json({ duplicate: false });
+  const rows = await db.select().from(invoicesTable).where(eq(invoicesTable.imageHash, hash));
+  if (rows.length > 0) {
+    return res.json({ duplicate: true, existingInvoice: toInvoice(rows[0]) });
+  }
+  return res.json({ duplicate: false });
 });
 
 router.post("/invoices", async (req, res) => {
   const body = CreateInvoiceBody.parse(req.body);
+  const extra = req.body as {
+    imageBase64?: string;
+    lineItems?: { name: string; quantity: number; unitPrice: number; subtotal: number }[];
+  };
+
+  // Compute hash if image provided
+  let imageHash: string | null = null;
+  let imageUrl: string | null = null;
+  if (extra.imageBase64) {
+    imageHash = createHash("sha256").update(extra.imageBase64).digest("hex");
+    // Store as data URL (base64 embedded)
+    const mimeType = req.body.mimeType ?? "image/jpeg";
+    imageUrl = `data:${mimeType};base64,${extra.imageBase64}`;
+  }
+
   const [row] = await db.insert(invoicesTable).values({
     type: body.type,
     vendorOrCustomer: body.vendorOrCustomer ?? null,
     amount: body.amount != null ? String(body.amount) : null,
     invoiceDate: body.invoiceDate ?? null,
-    imageUrl: null,
+    imageUrl,
+    imageHash,
     paymentProofUrl: null,
     paid: false,
+    lineItems: extra.lineItems ?? null,
+    stockUpdated: false,
     notes: body.notes ?? null,
     aiExtractedData: null,
   }).returning();
@@ -55,16 +90,49 @@ router.get("/invoices/:id", async (req, res) => {
 router.patch("/invoices/:id", async (req, res) => {
   const id = Number(req.params.id);
   const body = PatchInvoiceBody.parse(req.body);
-  const [row] = await db.update(invoicesTable)
-    .set({
-      ...(body.paid !== undefined && { paid: body.paid }),
-      ...(body.paymentProofUrl !== undefined && { paymentProofUrl: body.paymentProofUrl }),
-      ...(body.notes !== undefined && { notes: body.notes }),
-    })
-    .where(eq(invoicesTable.id, id))
-    .returning();
+  const updates: Record<string, unknown> = {};
+  if (body.paid !== undefined) updates.paid = body.paid;
+  if (body.paymentProofUrl !== undefined) updates.paymentProofUrl = body.paymentProofUrl;
+  if (body.notes !== undefined) updates.notes = body.notes;
+  if (body.stockUpdated !== undefined) updates.stockUpdated = body.stockUpdated;
+  if (body.lineItems !== undefined) updates.lineItems = body.lineItems;
+  const [row] = await db.update(invoicesTable).set(updates).where(eq(invoicesTable.id, id)).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   return res.json(toInvoice(row));
+});
+
+// Apply line items to stock (increase product quantities)
+router.post("/invoices/:id/apply-stock", async (req, res) => {
+  const id = Number(req.params.id);
+  const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
+  if (!invoice) return res.status(404).json({ error: "Not found" });
+  if ((invoice as Record<string, unknown>).stockUpdated) return res.status(400).json({ error: "Stock already updated for this invoice" });
+
+  const lineItems = invoice.lineItems as { name: string; quantity: number; unitPrice: number }[] | null;
+  if (!lineItems || lineItems.length === 0) return res.status(400).json({ error: "No line items on this invoice" });
+
+  const allProducts = await db.select().from(productsTable);
+  const results: { name: string; matched: boolean; productId?: number }[] = [];
+
+  for (const item of lineItems) {
+    const nameLower = item.name.toLowerCase().trim();
+    // Try exact then fuzzy match
+    const match = allProducts.find((p) => p.name.toLowerCase() === nameLower)
+      ?? allProducts.find((p) => p.name.toLowerCase().includes(nameLower) || nameLower.includes(p.name.toLowerCase()));
+
+    if (match) {
+      await db.update(productsTable).set({
+        stockQuantity: match.stockQuantity + Math.round(item.quantity),
+        updatedAt: new Date(),
+      }).where(eq(productsTable.id, match.id));
+      results.push({ name: item.name, matched: true, productId: match.id });
+    } else {
+      results.push({ name: item.name, matched: false });
+    }
+  }
+
+  await db.update(invoicesTable).set({ stockUpdated: true } as Record<string, unknown>).where(eq(invoicesTable.id, id));
+  return res.json({ ok: true, results });
 });
 
 router.delete("/invoices/:id", async (req, res) => {
@@ -74,6 +142,7 @@ router.delete("/invoices/:id", async (req, res) => {
 });
 
 function toInvoice(row: typeof invoicesTable.$inferSelect) {
+  const r = row as Record<string, unknown>;
   return {
     id: row.id,
     type: row.type,
@@ -81,8 +150,11 @@ function toInvoice(row: typeof invoicesTable.$inferSelect) {
     amount: row.amount != null ? parseFloat(row.amount as string) : null,
     invoiceDate: row.invoiceDate ?? null,
     imageUrl: row.imageUrl ?? null,
-    paymentProofUrl: (row as Record<string, unknown>).paymentProofUrl as string | null ?? null,
-    paid: (row as Record<string, unknown>).paid as boolean ?? false,
+    imageHash: r.imageHash as string | null ?? null,
+    paymentProofUrl: r.paymentProofUrl as string | null ?? null,
+    paid: r.paid as boolean ?? false,
+    lineItems: r.lineItems ?? null,
+    stockUpdated: r.stockUpdated as boolean ?? false,
     notes: row.notes ?? null,
     aiExtractedData: row.aiExtractedData ?? null,
     createdAt: row.createdAt.toISOString(),

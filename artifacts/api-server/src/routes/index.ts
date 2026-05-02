@@ -8,6 +8,7 @@ import dashboardRouter from "./dashboard";
 import aiRouter from "./ai";
 import telegramRouter from "./telegram";
 import analyticsRouter from "./analytics";
+import vendorPaymentsRouter from "./vendor-payments";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(dashboardRouter);
 router.use(aiRouter);
 router.use(telegramRouter);
 router.use(analyticsRouter);
+router.use(vendorPaymentsRouter);
 
 export default router;

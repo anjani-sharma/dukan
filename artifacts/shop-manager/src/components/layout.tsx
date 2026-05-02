@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, ShoppingCart, Users, Package, FileText, Zap, BarChart2 } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Users, Package, FileText, Zap, BarChart2, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuickEntry } from "./quick-entry";
 
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
+  { href: "/vendors", label: "Vendors", icon: Store },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

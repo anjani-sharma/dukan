@@ -9,6 +9,7 @@ import Customers from "@/pages/customers";
 import Products from "@/pages/products";
 import Invoices from "@/pages/invoices";
 import Analytics from "@/pages/analytics";
+import VendorPayments from "@/pages/vendor-payments";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/products" component={Products} />
         <Route path="/invoices" component={Invoices} />
         <Route path="/analytics" component={Analytics} />
+        <Route path="/vendors" component={VendorPayments} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
