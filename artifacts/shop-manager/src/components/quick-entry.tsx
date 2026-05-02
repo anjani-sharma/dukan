@@ -198,7 +198,15 @@ export function QuickEntry() {
     if (savingInvoice) return;
     setSavingInvoice(true);
     try {
-      // Use fetch directly so we can include lineItems (not in generated schema)
+      // Extract base64 + mimeType from the scanned image so the server can upload to R2
+      let imageBase64: string | undefined;
+      let mimeType: string | undefined;
+      if (invoicePreview) {
+        const match = invoicePreview.match(/^data:([^;]+);base64,(.+)$/s);
+        if (match) { mimeType = match[1]; imageBase64 = match[2]; }
+      }
+
+      // Use fetch directly so we can include lineItems + imageBase64 (not in generated schema)
       const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -209,6 +217,7 @@ export function QuickEntry() {
           invoiceDate: invoiceData?.invoiceDate ?? null,
           notes: "Uploaded via Quick Entry",
           lineItems: editableItems.length > 0 ? editableItems : null,
+          ...(imageBase64 ? { imageBase64, mimeType: mimeType ?? "image/jpeg" } : {}),
         }),
       });
 
