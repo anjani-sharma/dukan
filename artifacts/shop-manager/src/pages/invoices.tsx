@@ -106,12 +106,13 @@ function PaymentProofDialog({ invoice, onClose }: { invoice: InvoiceRow; onClose
 // ── Line Items Review Dialog ────────────────────────────────────────────────
 function LineItemsReviewDialog({
   vendorOrCustomer, invoiceDate, amount, lineItems: initial, imagePreview,
-  onConfirm, onCancel,
+  onConfirm, onCancel, isSaving = false,
 }: {
   vendorOrCustomer: string; invoiceDate: string; amount: number;
   lineItems: LineItem[]; imagePreview: string | null;
-  onConfirm: (data: { vendorOrCustomer: string; invoiceDate: string; amount: number; lineItems: LineItem[]; applyStock: boolean; type: "purchase" | "sale" }) => void;
+  onConfirm: (data: { vendorOrCustomer: string; invoiceDate: string; amount: number; lineItems: LineItem[]; applyStock: boolean; type: "purchase" | "sale" }) => void | Promise<void>;
   onCancel: () => void;
+  isSaving?: boolean;
 }) {
   const [items, setItems] = useState<LineItem[]>(initial.length > 0 ? initial : [{ name: "", quantity: 1, unitPrice: 0, subtotal: 0 }]);
   const [vendor, setVendor] = useState(vendorOrCustomer);
@@ -226,9 +227,9 @@ function LineItemsReviewDialog({
         </div>
 
         <div className="flex gap-2 px-6 py-4 border-t border-card-border flex-shrink-0">
-          <Button variant="ghost" className="flex-1" onClick={onCancel}>Cancel</Button>
-          <Button className="flex-1" onClick={() => onConfirm({ vendorOrCustomer: vendor, invoiceDate: date, amount: calcTotal || total, lineItems: items.filter((it) => it.name.trim()), applyStock, type })}>
-            Save Invoice
+          <Button variant="ghost" className="flex-1" onClick={onCancel} disabled={isSaving}>Cancel</Button>
+          <Button className="flex-1" disabled={isSaving} onClick={() => onConfirm({ vendorOrCustomer: vendor, invoiceDate: date, amount: calcTotal || total, lineItems: items.filter((it) => it.name.trim()), applyStock, type })}>
+            {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : "Save Invoice"}
           </Button>
         </div>
       </div>
@@ -320,6 +321,7 @@ export default function Invoices() {
   const [viewInvoice, setViewInvoice] = useState<InvoiceRow | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<{ message: string; existing: InvoiceRow } | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [savingInvoice, setSavingInvoice] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -383,7 +385,7 @@ export default function Invoices() {
   }
 
   async function handleReviewConfirm(data: { vendorOrCustomer: string; invoiceDate: string; amount: number; lineItems: LineItem[]; applyStock: boolean; type: "purchase" | "sale" }) {
-    setReviewOpen(false);
+    setSavingInvoice(true);
     const body = {
       type: data.type,
       vendorOrCustomer: data.vendorOrCustomer || null,
@@ -394,18 +396,36 @@ export default function Invoices() {
       mimeType: imageMime,
       lineItems: data.lineItems,
     };
-    const r = await fetch(`${BASE}/api/invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const invoice = await r.json();
-    qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
-    toast({ title: "Invoice saved" });
+    try {
+      const r = await fetch(`${BASE}/api/invoices`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const invoice = await r.json().catch(() => null);
+      if (!r.ok) {
+        throw new Error(invoice?.error ?? invoice?.message ?? `Invoice save failed (${r.status})`);
+      }
 
-    if (data.applyStock && data.type === "purchase" && invoice.id) {
-      const sr = await fetch(`${BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
-      const sd = await sr.json();
-      const matched = (sd.results as { matched: boolean }[])?.filter((x) => x.matched).length ?? 0;
-      const unmatched = (sd.results?.length ?? 0) - matched;
-      toast({ title: "Stock updated", description: `${matched} products updated${unmatched > 0 ? `, ${unmatched} items not matched to products` : ""}` });
-      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: getListInvoicesQueryKey({}) });
+      setReviewOpen(false);
+      toast({ title: "Invoice saved" });
+
+      if (data.applyStock && data.type === "purchase" && invoice?.id) {
+        const sr = await fetch(`${BASE}/api/invoices/${invoice.id}/apply-stock`, { method: "POST" });
+        const sd = await sr.json();
+        if (!sr.ok) {
+          throw new Error(sd?.error ?? `Stock update failed (${sr.status})`);
+        }
+        const matched = (sd.results as { matched: boolean }[])?.filter((x) => x.matched).length ?? 0;
+        const unmatched = (sd.results?.length ?? 0) - matched;
+        toast({ title: "Stock updated", description: `${matched} products updated${unmatched > 0 ? `, ${unmatched} items not matched to products` : ""}` });
+        qc.invalidateQueries({ queryKey: ["products"] });
+      }
+    } catch (err) {
+      toast({
+        title: "Invoice was not saved",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingInvoice(false);
     }
   }
 
@@ -437,6 +457,7 @@ export default function Invoices() {
           imagePreview={imagePreview}
           onConfirm={handleReviewConfirm}
           onCancel={() => setReviewOpen(false)}
+          isSaving={savingInvoice}
         />
       )}
 

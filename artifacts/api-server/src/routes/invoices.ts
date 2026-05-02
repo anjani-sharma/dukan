@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { uploadToR2, deleteFromR2, keyFromUrl } from "../lib/r2";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -63,7 +64,12 @@ router.post("/invoices", async (req, res) => {
     const ext = mimeType.split("/")[1] ?? "jpg";
     const key = `invoices/${randomUUID()}.${ext}`;
     const buffer = Buffer.from(extra.imageBase64, "base64");
-    const r2Url = await uploadToR2(buffer, key, mimeType);
+    let r2Url: string | null = null;
+    try {
+      r2Url = await uploadToR2(buffer, key, mimeType);
+    } catch (err) {
+      logger.warn({ err }, "Failed to upload invoice image to R2; saving invoice with embedded image");
+    }
     // Use R2 URL if available, otherwise fall back to base64 data URL
     imageUrl = r2Url ?? `data:${mimeType};base64,${extra.imageBase64}`;
   }
