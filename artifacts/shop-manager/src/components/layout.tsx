@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, ShoppingCart, Users, Package, FileText, BarChart2, Store, ShoppingBag, Menu, X } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Users, Package, FileText, BarChart2, Store, ShoppingBag, Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuickEntry } from "./quick-entry";
 import { useState } from "react";
@@ -24,7 +24,7 @@ const bottomNavItems = [
   { href: "/purchases", label: "Purchases", icon: ShoppingBag },
 ];
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout({ children, onLogout }: { children: React.ReactNode; onLogout?: () => void }) {
   const [location] = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -72,9 +72,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="text-xs text-muted-foreground">Also available on Telegram</div>
               <div className="text-xs text-primary mt-0.5 font-medium">Send voice or invoice photos</div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <img src="/ai-transformers-logo.png" alt="AI Transformers" className="w-5 h-5 rounded-sm opacity-70" />
-              <div className="text-xs text-muted-foreground/50 leading-tight">Powered by AI Transformers LTD</div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <img src="/ai-transformers-logo.png" alt="AI Transformers" className="w-5 h-5 rounded-sm opacity-70" />
+                <div className="text-xs text-muted-foreground/50 leading-tight">Powered by AI Transformers LTD</div>
+              </div>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </aside>
@@ -133,11 +144,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   );
                 })}
               </nav>
-              <div className="px-4 py-4 border-t border-sidebar-border">
+              <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
                 <div className="flex items-center gap-1.5">
                   <img src="/ai-transformers-logo.png" alt="AI Transformers" className="w-4 h-4 rounded-sm opacity-60" />
                   <div className="text-xs text-muted-foreground/50">Powered by AI Transformers LTD</div>
                 </div>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                  </button>
+                )}
               </div>
             </div>
           </div>

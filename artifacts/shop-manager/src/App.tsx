@@ -12,6 +12,8 @@ import Invoices from "@/pages/invoices";
 import Analytics from "@/pages/analytics";
 import VendorPayments from "@/pages/vendor-payments";
 import NotFound from "@/pages/not-found";
+import LoginPage from "@/pages/login";
+import { useAuth } from "@/hooks/use-auth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,9 +24,9 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+function Router({ onLogout }: { onLogout: () => void }) {
   return (
-    <Layout>
+    <Layout onLogout={onLogout}>
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/sales" component={Sales} />
@@ -40,13 +42,33 @@ function Router() {
   );
 }
 
+function AuthGate() {
+  const { state, error, loginLoading, login, logout } = useAuth();
+
+  if (state === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">Loading…</div>
+      </div>
+    );
+  }
+
+  if (state === "unauthenticated") {
+    return <LoginPage onLogin={login} error={error} loading={loginLoading} />;
+  }
+
+  return (
+    <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <Router onLogout={logout} />
+    </WouterRouter>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <AuthGate />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
