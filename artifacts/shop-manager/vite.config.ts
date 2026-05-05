@@ -2,33 +2,18 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
 
 // Safe defaults
 const port = Number(process.env.PORT) || 3000;
 const basePath = process.env.BASE_PATH || "/";
 
-// Conditionally include Replit plugins (without async)
-const isReplitDev =
-  process.env.NODE_ENV !== "production" &&
-  process.env.REPL_ID !== undefined;
+
 
 export default defineConfig({
   base: basePath,
 
-  plugins: [
-    react(),
-    tailwindcss(),
-    runtimeErrorOverlay(),
-    ...(isReplitDev
-      ? [
-          require("@replit/vite-plugin-cartographer").cartographer({
-            root: path.resolve(__dirname, ".."),
-          }),
-          require("@replit/vite-plugin-dev-banner").devBanner(),
-        ]
-      : []),
-  ],
+  plugins: [react(), tailwindcss()],
 
   resolve: {
     alias: {
