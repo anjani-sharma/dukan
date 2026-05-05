@@ -1,6 +1,6 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { COOKIE_NAME, createSession, deleteSession, validateSession, getShopPassword } from "../lib/session-store";
+import { COOKIE_NAME, makeSessionToken, deleteSession, validateSession, getShopPassword } from "../lib/session-store";
 
 const router = Router();
 
@@ -26,7 +26,7 @@ function timingSafeCompare(a: string, b: string): boolean {
   return crypto.timingSafeEqual(aBuf, bBuf);
 }
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", (req, res) => {
   const { password } = req.body as { password?: string };
 
   if (!password || !timingSafeCompare(password, getShopPassword())) {
@@ -34,23 +34,21 @@ router.post("/auth/login", async (req, res) => {
     return;
   }
 
-  const token = crypto.randomBytes(32).toString("hex");
-  await createSession(token);
-
+  const token = makeSessionToken();
   res.cookie(COOKIE_NAME, token, cookieOptions(7 * 24 * 60 * 60 * 1000));
   res.json({ ok: true });
 });
 
-router.post("/auth/logout", async (req, res) => {
+router.post("/auth/logout", (req, res) => {
   const token = (req.cookies as Record<string, string>)[COOKIE_NAME];
-  if (token) await deleteSession(token);
+  if (token) deleteSession(token);
   res.clearCookie(COOKIE_NAME, cookieOptions());
   res.json({ ok: true });
 });
 
-router.get("/auth/me", async (req, res) => {
+router.get("/auth/me", (req, res) => {
   const token = (req.cookies as Record<string, string>)[COOKIE_NAME];
-  if (!token || !(await validateSession(token))) {
+  if (!token || !validateSession(token)) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
