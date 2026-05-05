@@ -17,18 +17,16 @@ function cookieOptions(maxAge?: number) {
 }
 
 function timingSafeCompare(a: string, b: string): boolean {
-  // Lengths differ → definitely wrong, but still run a comparison to avoid timing leak
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);
   if (aBuf.length !== bBuf.length) {
-    // Compare against itself to consume constant time
     crypto.timingSafeEqual(aBuf, aBuf);
     return false;
   }
   return crypto.timingSafeEqual(aBuf, bBuf);
 }
 
-router.post("/auth/login", (req, res) => {
+router.post("/auth/login", async (req, res) => {
   const { password } = req.body as { password?: string };
 
   if (!password || !timingSafeCompare(password, getShopPassword())) {
@@ -37,22 +35,22 @@ router.post("/auth/login", (req, res) => {
   }
 
   const token = crypto.randomBytes(32).toString("hex");
-  createSession(token);
+  await createSession(token);
 
   res.cookie(COOKIE_NAME, token, cookieOptions(7 * 24 * 60 * 60 * 1000));
   res.json({ ok: true });
 });
 
-router.post("/auth/logout", (req, res) => {
+router.post("/auth/logout", async (req, res) => {
   const token = (req.cookies as Record<string, string>)[COOKIE_NAME];
-  if (token) deleteSession(token);
+  if (token) await deleteSession(token);
   res.clearCookie(COOKIE_NAME, cookieOptions());
   res.json({ ok: true });
 });
 
-router.get("/auth/me", (req, res) => {
+router.get("/auth/me", async (req, res) => {
   const token = (req.cookies as Record<string, string>)[COOKIE_NAME];
-  if (!token || !validateSession(token)) {
+  if (!token || !(await validateSession(token))) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }

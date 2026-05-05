@@ -1,5 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
@@ -14,11 +14,30 @@ import VendorPayments from "@/pages/vendor-payments";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import { useAuth } from "@/hooks/use-auth";
+import { ErrorBoundary } from "@/components/error-boundary";
+
+// Module-level ref so QueryClient (created once) can call the current logout fn
+let _onUnauthorized: (() => void) | null = null;
+
+function is401(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status: number }).status === 401
+  );
+}
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => { if (is401(error)) _onUnauthorized?.(); },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => { if (is401(error)) _onUnauthorized?.(); },
+  }),
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error) => !is401(error) && failureCount < 1,
       refetchOnWindowFocus: false,
     },
   },
@@ -45,6 +64,12 @@ function Router({ onLogout }: { onLogout: () => void }) {
 function AuthGate() {
   const { state, error, loginLoading, login, logout } = useAuth();
 
+  // Keep the module-level ref current so QueryClient can trigger logout on 401
+  _onUnauthorized = () => {
+    queryClient.clear();
+    logout();
+  };
+
   if (state === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -66,12 +91,14 @@ function AuthGate() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthGate />
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthGate />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
