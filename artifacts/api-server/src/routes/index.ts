@@ -14,6 +14,7 @@ import purchasesRouter from "./purchases";
 import returnsRouter from "./returns";
 import suppliersRouter from "./suppliers";
 import stockMovementsRouter from "./stock-movements";
+import cronRouter from "./cron";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(purchasesRouter);
 router.use(returnsRouter);
 router.use(suppliersRouter);
 router.use(stockMovementsRouter);
+router.use(cronRouter);
 
 export default router;

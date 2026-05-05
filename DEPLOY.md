@@ -39,7 +39,7 @@ DATABASE_URL="<your-neon-connection-string>" pnpm --filter @workspace/db run pus
    - `DATABASE_URL` → your Neon connection string
    - `OPENAI_API_KEY` → your OpenAI key
    - `TELEGRAM_BOT_TOKEN` → your Telegram bot token
-5. Deploy — note your Render URL: `https://dokan-api.onrender.com`
+5. Deploy — note your Render URL: `https://dokan-11zk.onrender.com`
 
 ### Register the Telegram webhook (after deploy)
 
@@ -57,8 +57,8 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<r
 2. Set **Root Directory** to `artifacts/shop-manager`
 3. Vercel will detect `vercel.json` and use the correct build command automatically
 4. Add this environment variable:
-   - `VITE_API_URL` → `https://dokan-api.onrender.com`
-5. Deploy — your frontend will be live at `https://dokan-rk.vercel.app`
+   - `VITE_API_URL` → `https://dokan-11zk.onrender.com`
+5. Deploy — your frontend will be live at `https://dokane.vercel.app/`
 
 ---
 
@@ -97,4 +97,4 @@ Each client is fully isolated — separate data, separate URL.
 ### Vercel (Frontend)
 | Variable | Description |
 |---|---|
-| `VITE_API_URL` | Full URL of your Render API, e.g. `https://dokan-api.onrender.com` |
+| `VITE_API_URL` | Full URL of your Render API, e.g. `https://dokan-11zk.onrender.com` |

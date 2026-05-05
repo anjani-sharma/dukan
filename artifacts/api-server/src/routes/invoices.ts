@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { invoicesTable, productsTable } from "@workspace/db";
-import { eq, ilike } from "drizzle-orm";
+import { invoicesTable, productsTable, purchasesTable, suppliersTable } from "@workspace/db";
+import { eq, ilike, sql } from "drizzle-orm";
 import {
   ListInvoicesQueryParams,
   CreateInvoiceBody,
@@ -41,15 +41,28 @@ router.get("/invoices", async (req, res) => {
   return res.json(rows.map(toInvoice));
 });
 
-// Check duplicate by image hash
+// Check duplicate by image hash (exact)
 router.get("/invoices/check-duplicate", async (req, res) => {
   const hash = req.query.hash as string;
   if (!hash) return res.json({ duplicate: false });
   const rows = await db.select().from(invoicesTable).where(eq(invoicesTable.imageHash, hash));
-  if (rows.length > 0) {
-    return res.json({ duplicate: true, existingInvoice: toInvoice(rows[0]) });
-  }
+  if (rows.length > 0) return res.json({ duplicate: true, confidence: "exact", existingInvoice: toInvoice(rows[0]) });
   return res.json({ duplicate: false });
+});
+
+// Content-based duplicate check: vendor name + date + amount + line item count
+router.get("/invoices/check-duplicate-content", async (req, res) => {
+  const vendor = (req.query.vendor as string ?? "").trim();
+  const amount = req.query.amount ? parseFloat(req.query.amount as string) : null;
+  const date = (req.query.date as string ?? "").trim();   // YYYY-MM-DD
+  const itemCount = req.query.itemCount ? parseInt(req.query.itemCount as string) : null;
+  const excludeId = req.query.excludeId ? parseInt(req.query.excludeId as string) : null;
+
+  const all = await db.select().from(invoicesTable);
+  const candidates = excludeId ? all.filter((r) => r.id !== excludeId) : all;
+
+  const result = findContentDuplicate(candidates, { vendor, amount, date, itemCount });
+  return res.json(result);
 });
 
 router.post("/invoices", async (req, res) => {
@@ -79,11 +92,28 @@ router.post("/invoices", async (req, res) => {
       imageUrl = r2Url ?? `data:${mimeType};base64,${extra.imageBase64}`;
     }
 
+    // Content-based duplicate check before saving
+    const invoiceDateStr = body.invoiceDate instanceof Date
+      ? body.invoiceDate.toISOString().split("T")[0]
+      : (body.invoiceDate ?? null);
+    const existing = await db.select().from(invoicesTable);
+    const dupCheck = findContentDuplicate(existing, {
+      vendor: body.vendorOrCustomer ?? "",
+      amount: body.amount ?? null,
+      date: invoiceDateStr ?? "",
+      itemCount: extra.lineItems?.length ?? null,
+    });
+
+    // Auto-create supplier record if vendor name present
+    if (body.vendorOrCustomer?.trim()) {
+      await upsertSupplier(body.vendorOrCustomer.trim());
+    }
+
     const [row] = await db.insert(invoicesTable).values({
       type: body.type,
       vendorOrCustomer: body.vendorOrCustomer ?? null,
       amount: body.amount != null ? String(body.amount) : null,
-      invoiceDate: body.invoiceDate instanceof Date ? body.invoiceDate.toISOString().split("T")[0] : (body.invoiceDate ?? null),
+      invoiceDate: invoiceDateStr,
       imageUrl,
       imageHash,
       paymentProofUrl: null,
@@ -93,7 +123,17 @@ router.post("/invoices", async (req, res) => {
       notes: body.notes ?? null,
       aiExtractedData: null,
     }).returning();
-    return res.status(201).json(toInvoice(row));
+
+    const response = toInvoice(row) as Record<string, unknown>;
+    if (dupCheck.duplicate) {
+      response.duplicateWarning = {
+        confidence: dupCheck.confidence,
+        score: dupCheck.score,
+        existingInvoice: dupCheck.existingInvoice,
+        message: `Possible duplicate (${dupCheck.confidence} confidence, score ${dupCheck.score}/110). Similar invoice already exists.`,
+      };
+    }
+    return res.status(201).json(response);
   } catch (err) {
     logger.error({ err }, "Failed to save invoice");
     return res.status(500).json({ error: "Failed to save invoice", detail: errorMessage(err) });
@@ -120,6 +160,82 @@ router.patch("/invoices/:id", async (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   return res.json(toInvoice(row));
 });
+
+// Auto-upsert supplier by name (case-insensitive). Returns supplier id.
+async function upsertSupplier(name: string): Promise<number> {
+  const [existing] = await db.select().from(suppliersTable)
+    .where(sql`lower(${suppliersTable.name}) = lower(${name})`);
+  if (existing) return existing.id;
+  const [created] = await db.insert(suppliersTable).values({ name }).returning();
+  return created.id;
+}
+
+// ── Content-based duplicate detection ────────────────────────────────────────
+
+interface DuplicateCandidate {
+  vendor: string;
+  amount: number | null;
+  date: string;       // YYYY-MM-DD
+  itemCount: number | null;
+}
+
+function scoreDuplicate(existing: typeof invoicesTable.$inferSelect, candidate: DuplicateCandidate): number {
+  let score = 0;
+
+  // Vendor name (40 pts)
+  const existingVendor = existing.vendorOrCustomer ?? "";
+  if (existingVendor && candidate.vendor) {
+    const sim = wordSimilarity(existingVendor, candidate.vendor);
+    if (sim >= 0.8) score += 40;
+    else if (sim >= 0.5) score += 25;
+    else if (sim >= 0.3) score += 10;
+  }
+
+  // Amount (40 pts)
+  const existingAmt = existing.amount ? parseFloat(existing.amount as string) : null;
+  if (existingAmt != null && candidate.amount != null) {
+    const diff = Math.abs(existingAmt - candidate.amount);
+    const pct = existingAmt > 0 ? diff / existingAmt : diff;
+    if (pct === 0) score += 40;
+    else if (pct <= 0.01) score += 35;  // within 1%
+    else if (pct <= 0.05) score += 20;  // within 5%
+  }
+
+  // Date (20 pts)
+  if (existing.invoiceDate && candidate.date) {
+    const d1 = new Date(existing.invoiceDate).getTime();
+    const d2 = new Date(candidate.date).getTime();
+    const daysDiff = Math.abs(d1 - d2) / 86_400_000;
+    if (daysDiff === 0) score += 20;
+    else if (daysDiff <= 2) score += 10;
+  }
+
+  // Line item count bonus (10 pts)
+  const existingItems = existing.lineItems as unknown[] | null;
+  const existingCount = existingItems?.length ?? null;
+  if (existingCount != null && candidate.itemCount != null && existingCount === candidate.itemCount) {
+    score += 10;
+  }
+
+  return score;
+}
+
+function findContentDuplicate(
+  rows: (typeof invoicesTable.$inferSelect)[],
+  candidate: DuplicateCandidate,
+): { duplicate: boolean; confidence: string; score: number; existingInvoice: ReturnType<typeof toInvoice> | null } {
+  let best: typeof rows[0] | null = null;
+  let bestScore = 0;
+
+  for (const row of rows) {
+    const s = scoreDuplicate(row, candidate);
+    if (s > bestScore) { best = row; bestScore = s; }
+  }
+
+  if (bestScore >= 75) return { duplicate: true, confidence: "high", score: bestScore, existingInvoice: toInvoice(best!) };
+  if (bestScore >= 50) return { duplicate: true, confidence: "medium", score: bestScore, existingInvoice: toInvoice(best!) };
+  return { duplicate: false, confidence: "none", score: bestScore, existingInvoice: null };
+}
 
 // Word-overlap similarity: tokenise both names and compute Jaccard score
 function wordSimilarity(a: string, b: string): number {
@@ -191,6 +307,35 @@ router.post("/invoices/:id/apply-stock", async (req, res) => {
   }
 
   await db.update(invoicesTable).set({ stockUpdated: true } as Record<string, unknown>).where(eq(invoicesTable.id, id));
+
+  // Auto-create a Purchase record so the transaction appears on the Purchases page
+  const vendorName = invoice.vendorOrCustomer ?? "Unknown Vendor";
+
+  // Upsert supplier so it appears in the Suppliers list
+  const supplierId = vendorName !== "Unknown Vendor"
+    ? await upsertSupplier(vendorName)
+    : null;
+
+  const purchaseItems = lineItems.map((item, i) => {
+    const r = results[i];
+    return {
+      productId: r?.productId ?? null,
+      productName: item.name,
+      quantity: Number(item.quantity) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      subtotal: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+    };
+  });
+  const purchaseTotal = purchaseItems.reduce((s, i) => s + i.subtotal, 0);
+  await db.insert(purchasesTable).values({
+    vendorName,
+    supplierId,
+    purchaseDate: invoice.invoiceDate ?? null,
+    notes: `From scanned invoice #${invoice.id}`,
+    items: purchaseItems,
+    totalAmount: String(purchaseTotal),
+  });
+
   return res.json({ ok: true, results });
 });
 

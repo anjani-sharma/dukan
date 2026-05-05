@@ -34,7 +34,7 @@ export default function Purchases() {
   const [dupWarning, setDupWarning] = useState<{ existingPurchase: { id: number; vendorName: string; totalAmount: number; createdAt: string } } | null>(null);
   const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null);
 
-  const { data: purchases, isLoading } = useListPurchases({ query: { queryKey: getListPurchasesQueryKey() } });
+  const { data: purchases, isLoading, isError } = useListPurchases({ query: { queryKey: getListPurchasesQueryKey() } });
   const { data: products } = useListProducts({}, { query: { queryKey: getListProductsQueryKey({}) } });
   const createPurchase = useCreatePurchase();
   const deletePurchase = useDeletePurchase();
@@ -141,6 +141,11 @@ export default function Purchases() {
 
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 bg-card border border-card-border rounded-xl animate-pulse" />)}</div>
+      ) : isError ? (
+        <div className="text-center py-16 bg-card border border-destructive/40 rounded-xl">
+          <p className="text-destructive font-medium text-sm">Failed to load purchases.</p>
+          <p className="text-muted-foreground text-xs mt-1">Check the browser console for the API error.</p>
+        </div>
       ) : !purchases?.length ? (
         <div className="text-center py-16 bg-card border border-card-border rounded-xl">
           <ShoppingBag className="w-10 h-10 text-muted-foreground mx-auto mb-3" />

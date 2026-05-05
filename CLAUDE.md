@@ -135,7 +135,7 @@ CLOUDFLARE_R2_PUBLIC_URL
 
 ### Frontend
 ```
-VITE_API_URL                        # e.g. http://localhost:3000 or https://dokan-api.onrender.com
+VITE_API_URL                        # e.g. http://localhost:3000 or https://dokane.vercel.app/
 ```
 
 ---

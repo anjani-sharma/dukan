@@ -16,13 +16,87 @@ const CreateVendorPaymentBody = z.object({
   linkedInvoiceId: z.number().int().optional().nullable(),
 });
 
+// Word-overlap similarity
+function wordSim(a: string, b: string): number {
+  const tok = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9]/g, " ").split(/\s+/).filter(Boolean));
+  const ta = tok(a); const tb = tok(b);
+  let common = 0; for (const w of ta) if (tb.has(w)) common++;
+  const union = new Set([...ta, ...tb]).size;
+  return union === 0 ? 0 : common / union;
+}
+
+function findPaymentDuplicate(
+  rows: (typeof vendorPaymentsTable.$inferSelect)[],
+  vendor: string,
+  amount: number,
+  date: string | null,
+  method: string,
+): { duplicate: boolean; confidence: string; score: number; existingPayment: ReturnType<typeof toPayment> | null } {
+  let best: typeof rows[0] | null = null;
+  let bestScore = 0;
+
+  for (const row of rows) {
+    let score = 0;
+
+    // Vendor name (40 pts)
+    const sim = wordSim(row.vendorName, vendor);
+    if (sim >= 0.8) score += 40;
+    else if (sim >= 0.5) score += 25;
+    else if (sim >= 0.3) score += 10;
+
+    // Amount (40 pts)
+    const rowAmt = parseFloat(row.amount as string);
+    const diff = Math.abs(rowAmt - amount);
+    const pct = rowAmt > 0 ? diff / rowAmt : diff;
+    if (pct === 0) score += 40;
+    else if (pct <= 0.01) score += 35;
+    else if (pct <= 0.05) score += 20;
+
+    // Date (15 pts)
+    if (row.paymentDate && date) {
+      const daysDiff = Math.abs(new Date(row.paymentDate).getTime() - new Date(date).getTime()) / 86_400_000;
+      if (daysDiff === 0) score += 15;
+      else if (daysDiff <= 2) score += 7;
+    }
+
+    // Payment method (5 pts)
+    if (row.paymentMethod === method) score += 5;
+
+    if (score > bestScore) { best = row; bestScore = score; }
+  }
+
+  if (bestScore >= 75) return { duplicate: true, confidence: "high", score: bestScore, existingPayment: toPayment(best!) };
+  if (bestScore >= 50) return { duplicate: true, confidence: "medium", score: bestScore, existingPayment: toPayment(best!) };
+  return { duplicate: false, confidence: "none", score: bestScore, existingPayment: null };
+}
+
 router.get("/vendor-payments", async (_req, res) => {
   const rows = await db.select().from(vendorPaymentsTable).orderBy(vendorPaymentsTable.createdAt);
   return res.json(rows.map(toPayment));
 });
 
+// Content-based duplicate check endpoint
+router.get("/vendor-payments/check-duplicate", async (req, res) => {
+  const vendor = (req.query.vendor as string ?? "").trim();
+  const amount = req.query.amount ? parseFloat(req.query.amount as string) : null;
+  const date = (req.query.date as string ?? null);
+  const method = (req.query.method as string ?? "cash");
+  const excludeId = req.query.excludeId ? parseInt(req.query.excludeId as string) : null;
+
+  if (!vendor || amount == null) return res.json({ duplicate: false, confidence: "none", score: 0, existingPayment: null });
+
+  const all = await db.select().from(vendorPaymentsTable);
+  const candidates = excludeId ? all.filter((r) => r.id !== excludeId) : all;
+  return res.json(findPaymentDuplicate(candidates, vendor, amount, date, method));
+});
+
 router.post("/vendor-payments", async (req, res) => {
   const body = CreateVendorPaymentBody.parse(req.body);
+
+  // Content-based duplicate check
+  const existing = await db.select().from(vendorPaymentsTable);
+  const dupCheck = findPaymentDuplicate(existing, body.vendorName, body.amount, body.paymentDate ?? null, body.paymentMethod);
+
   const [row] = await db.insert(vendorPaymentsTable).values({
     vendorName: body.vendorName,
     amount: String(body.amount),
@@ -32,7 +106,17 @@ router.post("/vendor-payments", async (req, res) => {
     notes: body.notes ?? null,
     linkedInvoiceId: body.linkedInvoiceId ?? null,
   }).returning();
-  return res.status(201).json(toPayment(row));
+
+  const response = toPayment(row) as Record<string, unknown>;
+  if (dupCheck.duplicate) {
+    response.duplicateWarning = {
+      confidence: dupCheck.confidence,
+      score: dupCheck.score,
+      existingPayment: dupCheck.existingPayment,
+      message: `Possible duplicate payment (${dupCheck.confidence} confidence). Similar payment already recorded.`,
+    };
+  }
+  return res.status(201).json(response);
 });
 
 router.patch("/vendor-payments/:id", async (req, res) => {
