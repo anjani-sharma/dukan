@@ -42,4 +42,12 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 app.use("/api", requireAuth, router);
 
+// Global error handler — logs full error chain so Render logs show the real cause
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const message = err instanceof Error ? err.message : String(err);
+  const cause = err instanceof Error && (err as NodeJS.ErrnoException).cause;
+  logger.error({ err, cause }, `Unhandled error: ${message}`);
+  if (!res.headersSent) res.status(500).json({ error: message });
+});
+
 export default app;

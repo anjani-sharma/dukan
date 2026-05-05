@@ -6,8 +6,14 @@ import { eq, ilike, sql } from "drizzle-orm";
 const router = Router();
 
 router.get("/purchases", async (_req, res) => {
-  const rows = await db.select().from(purchasesTable).orderBy(sql`${purchasesTable.createdAt} DESC`);
-  return res.json(rows.map(toPurchase));
+  try {
+    const rows = await db.select().from(purchasesTable).orderBy(sql`${purchasesTable.createdAt} DESC`);
+    return res.json(rows.map(toPurchase));
+  } catch (err) {
+    const cause = (err as NodeJS.ErrnoException)?.cause;
+    console.error("[purchases] query failed:", err, cause ? `\ncause: ${JSON.stringify(cause)}` : "");
+    throw err;
+  }
 });
 
 // Duplicate check: same vendor + same total + same date
