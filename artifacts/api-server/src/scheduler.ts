@@ -6,12 +6,19 @@ import { logger } from "./lib/logger";
 
 async function sendTelegramMessage(chatId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  if (!token) {
+    logger.error("TELEGRAM_BOT_TOKEN not set — cannot send scheduled report");
+    return;
+  }
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
   });
+  if (!res.ok) {
+    const body = await res.text();
+    logger.error({ chatId, status: res.status, body }, "Telegram sendMessage failed");
+  }
 }
 
 async function getSubscribers(): Promise<string[]> {

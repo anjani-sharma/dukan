@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { purchasesTable, productsTable } from "@workspace/db";
+import { purchasesTable, productsTable, stockMovementsTable } from "@workspace/db";
 import { eq, ilike, sql } from "drizzle-orm";
 
 const router = Router();
@@ -57,7 +57,7 @@ router.post("/purchases", async (req, res) => {
     totalAmount: String(totalAmount),
   }).returning();
 
-  // Auto-increment stock for matched products (word-overlap fuzzy matching)
+  // Auto-increment stock + write movements (word-overlap fuzzy matching)
   if (body.applyStock !== false) {
     const allProducts = await db.select().from(productsTable);
     const tok = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9.]/g, " ").split(/\s+/).filter(Boolean));
@@ -68,12 +68,13 @@ router.post("/purchases", async (req, res) => {
       return union === 0 ? 0 : common / union;
     };
     for (const item of items) {
-      let pid = item.productId ?? null;
-      if (!pid && item.productName) {
+      let matchedProduct: typeof allProducts[0] | null = null;
+      if (item.productId) {
+        matchedProduct = allProducts.find((p) => p.id === item.productId) ?? null;
+      } else if (item.productName) {
         const name = item.productName;
         const lower = name.toLowerCase().trim();
-        // 1. exact  2. substring  3. word-overlap ≥ 0.35
-        const match = allProducts.find((p) => p.name.toLowerCase() === lower)
+        matchedProduct = allProducts.find((p) => p.name.toLowerCase() === lower)
           ?? allProducts.find((p) => p.name.toLowerCase().includes(lower) || lower.includes(p.name.toLowerCase()))
           ?? (() => {
             let best = null as typeof allProducts[0] | null;
@@ -84,13 +85,23 @@ router.post("/purchases", async (req, res) => {
             }
             return best;
           })();
-        pid = match?.id ?? null;
       }
+      const pid = matchedProduct?.id ?? null;
       if (pid) {
         await db.update(productsTable)
           .set({ stockQuantity: sql`${productsTable.stockQuantity} + ${item.quantity}` })
           .where(eq(productsTable.id, pid));
       }
+      // Always write movement — unmatched items saved with productName for traceability
+      await db.insert(stockMovementsTable).values({
+        productId: pid,
+        productName: matchedProduct?.name ?? item.productName,
+        movementType: "purchase",
+        qtyChange: String(item.quantity),
+        referenceId: row.id,
+        referenceType: "purchase",
+        notes: pid ? null : `unmatched: "${item.productName}"`,
+      });
     }
   }
 

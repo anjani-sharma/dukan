@@ -1,10 +1,12 @@
-import { pgTable, serial, text, numeric, date, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, date, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { suppliersTable } from "./suppliers";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const purchasesTable = pgTable("purchases", {
   id: serial("id").primaryKey(),
   vendorName: text("vendor_name").notNull(),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
   purchaseDate: date("purchase_date"),
   totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull().default("0"),
   notes: text("notes"),

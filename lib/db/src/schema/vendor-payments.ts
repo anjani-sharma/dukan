@@ -1,13 +1,16 @@
 import { pgTable, serial, text, numeric, date, timestamp, integer } from "drizzle-orm/pg-core";
+import { suppliersTable } from "./suppliers";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const vendorPaymentsTable = pgTable("vendor_payments", {
   id: serial("id").primaryKey(),
   vendorName: text("vendor_name").notNull(),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   paymentDate: date("payment_date"),
   paymentMethod: text("payment_method").notNull().default("cash"),
+  direction: text("direction").notNull().default("outflow"), // outflow (paying vendor) | inflow (vendor refund)
   proofImageUrl: text("proof_image_url"),
   notes: text("notes"),
   linkedInvoiceId: integer("linked_invoice_id"),

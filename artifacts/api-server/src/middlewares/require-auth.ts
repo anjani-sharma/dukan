@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { COOKIE_NAME, validateSession } from "../lib/session-store";
 
-const PUBLIC_PATHS = new Set(["/health"]);
+const PUBLIC_PATHS = new Set(["/health", "/cron/daily-report", "/cron/weekly-report"]);
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   // Public routes — no auth needed

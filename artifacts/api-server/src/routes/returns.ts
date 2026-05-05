@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { returnsTable, productsTable, customersTable } from "@workspace/db";
+import { returnsTable, productsTable, customersTable, stockMovementsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 const router = Router();
@@ -39,16 +39,27 @@ router.post("/returns", async (req, res) => {
     totalAmount: String(totalAmount),
   }).returning();
 
-  // Restore stock for returned items
+  // Restore stock for returned items + write movements
   const allProducts = await db.select().from(productsTable);
   const byName = new Map(allProducts.map((p) => [p.name.toLowerCase(), p]));
   for (const item of items) {
-    const pid = item.productId ?? byName.get(item.productName.toLowerCase())?.id ?? null;
+    const matchedProduct = item.productId
+      ? allProducts.find((p) => p.id === item.productId) ?? null
+      : byName.get(item.productName.toLowerCase()) ?? null;
+    const pid = matchedProduct?.id ?? null;
     if (pid) {
       await db.update(productsTable)
         .set({ stockQuantity: sql`${productsTable.stockQuantity} + ${item.quantity}` })
         .where(eq(productsTable.id, pid));
     }
+    await db.insert(stockMovementsTable).values({
+      productId: pid,
+      productName: matchedProduct?.name ?? item.productName,
+      movementType: "return",
+      qtyChange: String(item.quantity),
+      referenceId: row.id,
+      referenceType: "return",
+    });
   }
 
   const customers = await db.select().from(customersTable);

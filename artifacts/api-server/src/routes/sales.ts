@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { salesTable, customersTable, productsTable } from "@workspace/db";
+import { salesTable, customersTable, productsTable, stockMovementsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import {
   ListSalesQueryParams,
@@ -84,12 +84,23 @@ router.post("/sales", async (req, res) => {
   const productsByName = new Map(allProducts.map((p) => [p.name.toLowerCase(), p]));
 
   for (const item of items) {
-    const pid = item.productId ?? productsByName.get(item.productName.toLowerCase())?.id ?? null;
+    const matchedProduct = item.productId
+      ? allProducts.find((p) => p.id === item.productId)
+      : productsByName.get(item.productName.toLowerCase());
+    const pid = matchedProduct?.id ?? null;
     if (pid) {
       await db.update(productsTable)
         .set({ stockQuantity: sql`GREATEST(0, ${productsTable.stockQuantity} - ${item.quantity})` })
         .where(eq(productsTable.id, pid));
     }
+    await db.insert(stockMovementsTable).values({
+      productId: pid,
+      productName: matchedProduct?.name ?? item.productName,
+      movementType: "sale",
+      qtyChange: String(-item.quantity),
+      referenceId: sale.id,
+      referenceType: "sale",
+    });
   }
 
   return res.status(201).json(toSaleResponse(sale, new Map()));

@@ -3,6 +3,7 @@ import { TranscribeVoiceBody, ParseInvoiceImageBody } from "@workspace/api-zod";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import { withRetry } from "../lib/retry";
 
 const router = Router();
 
@@ -47,15 +48,15 @@ router.post("/ai/transcribe-voice", async (req, res) => {
     const stream = Readable.from(audioBuffer);
     (stream as unknown as Record<string, unknown>).name = `audio.${ext}`;
 
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await withRetry(() => openai.audio.transcriptions.create({
       file: stream as unknown as Parameters<typeof openai.audio.transcriptions.create>[0]["file"],
       model: "gpt-4o-mini-transcribe",
       language: "hi",
-    });
+    }));
 
     const transcript = transcription.text;
 
-    const parseResponse = await openai.chat.completions.create({
+    const parseResponse = await withRetry(() => openai.chat.completions.create({
       model: "gpt-4o-mini",
       max_tokens: 512,
       messages: [
@@ -68,7 +69,7 @@ If price not mentioned use 0. Return valid JSON only, no markdown.`,
         },
         { role: "user", content: transcript },
       ],
-    });
+    }));
 
     let parsedSale = null;
     try {
@@ -102,7 +103,7 @@ router.post("/ai/parse-invoice-image", async (req, res) => {
 
     const anthropic = getAnthropic();
 
-    const response = await anthropic.messages.create({
+    const response = await withRetry(() => anthropic.messages.create({
       model: "claude-opus-4-5",
       max_tokens: 2000,
       system: `You are an expert at reading Indian electrical goods invoices, estimates, and delivery challans.
@@ -143,7 +144,7 @@ Return JSON only (no markdown):
           ],
         },
       ],
-    });
+    }));
 
     const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
     const data = JSON.parse(extractJson(content));
@@ -176,7 +177,7 @@ router.post("/ai/parse-payment-receipt", async (req, res) => {
 
     const anthropic = getAnthropic();
 
-    const response = await anthropic.messages.create({
+    const response = await withRetry(() => anthropic.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 800,
       system: `You are an expert at reading Indian payment receipts and bank documents. Common types:
@@ -222,7 +223,7 @@ Return JSON only (no markdown):
           ],
         },
       ],
-    });
+    }));
 
     const content = response.content[0]?.type === "text" ? response.content[0].text : "{}";
     const data = JSON.parse(extractJson(content));
